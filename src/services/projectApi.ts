@@ -38,6 +38,41 @@ export interface Project {
   };
 }
 
+export interface ProjectInvoiceItem {
+  itemName: string;
+  description?: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface BillProjectRequest {
+  customerId?: number;
+  projectId?: number;
+  issueDate?: string;
+  dueDate?: string;
+  taxAmount?: number;
+  discountAmount?: number;
+  notes?: string;
+  items: ProjectInvoiceItem[];
+}
+
+export interface ProjectBillingSummary {
+  projectId: number;
+  projectCode: string;
+  projectName: string;
+  customerId: number;
+  customerName: string;
+  customerCompanyName: string;
+  budget: number;
+  totalBilled: number;
+  totalPaid: number;
+  pendingDueOnInvoices: number;
+  remainingProjectBalance: number;
+  unbilledContractAmount: number;
+  invoices: any[];
+  paymentSubmissions: any[];
+}
+
 export const projectApi = {
   async getMyProjects(): Promise<Project[]> {
     const res = await http.get("/api/v1/employee/me/projects");
@@ -47,6 +82,20 @@ export const projectApi = {
   async getProject(id: number): Promise<Project> {
     const res = await http.get(`/api/v1/projects/${id}`);
     return res.data?.data;
+  },
+
+  async getProjectBilling(projectId: number): Promise<ProjectBillingSummary | null> {
+    try {
+      const res = await http.get(`/api/v1/projects/${projectId}/billing`);
+      return res.data?.data || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async billProject(projectId: number, payload: BillProjectRequest) {
+    const res = await http.post(`/api/v1/employee/me/projects/${projectId}/bill`, payload);
+    return res.data;
   },
 
   async getProjectTasks(projectId: number): Promise<ProjectTask[]> {
@@ -69,4 +118,5 @@ export const projectApi = {
     return res.data?.data;
   },
 };
+
 
