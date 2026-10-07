@@ -8,6 +8,8 @@ export interface WorkLog {
   logDate: string;
   workSummary: string;
   hoursWorked?: number;
+  workUnits?: number;
+  workCost?: number;
   projectId?: number;
   projectName?: string;
   taskId?: number;
@@ -26,6 +28,8 @@ export interface WorkLogRequest {
   logDate: string;
   workSummary: string;
   hoursWorked?: number;
+  workUnits?: number;
+  workCost?: number;
   projectId?: number;
   taskId?: number;
   tasksCompleted?: string;

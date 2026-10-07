@@ -43,6 +43,8 @@ export function EmployeeWorkLogsPage() {
   const [logDate, setLogDate] = useState(new Date().toISOString().split("T")[0]);
   const [projectId, setProjectId] = useState<number | "">("");
   const [hoursWorked, setHoursWorked] = useState<number | "">("");
+  const [workUnits, setWorkUnits] = useState<number | "">("");
+  const [workCost, setWorkCost] = useState<number | "">("");
   const [workSummary, setWorkSummary] = useState("");
   const [tasksCompleted, setTasksCompleted] = useState("");
   const [blockers, setBlockers] = useState("");
@@ -142,7 +144,9 @@ export function EmployeeWorkLogsPage() {
       await workLogApi.submitWorkLog({
         logDate,
         workSummary,
-        hoursWorked: hoursWorked ? Number(hoursWorked) : undefined,
+        hoursWorked: hoursWorked !== "" ? Number(hoursWorked) : undefined,
+        workUnits: workUnits !== "" ? Number(workUnits) : undefined,
+        workCost: workCost !== "" ? Number(workCost) : undefined,
         projectId: projectId ? Number(projectId) : undefined,
         tasksCompleted: tasksCompleted || undefined,
         blockers: blockers || undefined,
@@ -154,6 +158,8 @@ export function EmployeeWorkLogsPage() {
       setTasksCompleted("");
       setBlockers("");
       setHoursWorked("");
+      setWorkUnits("");
+      setWorkCost("");
       setProjectId("");
       setProjectTasks([]);
       fetchData();
@@ -169,10 +175,10 @@ export function EmployeeWorkLogsPage() {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
         <Box>
           <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
-            Daily Work Reporting
+            Project Tasks & Daily Work Reporting
           </Typography>
           <Typography variant="body2" sx={{ color: "#64748b" }}>
-            Submit end-of-day progress reports and link completed tasks to your assigned projects. Reports are reviewed by administrators.
+            Submit daily tasks, units of work done, and dynamic cost additions for your projects. Costs logged dynamically accumulate onto the project's total cost and budget.
           </Typography>
         </Box>
         <Button
@@ -215,7 +221,8 @@ export function EmployeeWorkLogsPage() {
                     <TableCell sx={{ fontWeight: 700 }}>Project</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Work Summary</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Tasks Accomplished</TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>Hours</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Units / Hours</TableCell>
+                    <TableCell sx={{ fontWeight: 700 }}>Cost Added (₹)</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
                     <TableCell sx={{ fontWeight: 700 }}>Review Notes</TableCell>
                     <TableCell sx={{ fontWeight: 700, textAlign: "right" }}>Action</TableCell>
@@ -258,7 +265,19 @@ export function EmployeeWorkLogsPage() {
                           <Typography variant="caption" color="text.secondary">—</Typography>
                         )}
                       </TableCell>
-                      <TableCell>{log.hoursWorked ? `${log.hoursWorked} hrs` : "-"}</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight={700}>
+                          {log.workUnits !== undefined && log.workUnits !== null ? `${log.workUnits} units` : (log.hoursWorked ? `${log.hoursWorked} hrs` : "-")}
+                        </Typography>
+                        {log.workUnits !== undefined && log.workUnits !== null && log.hoursWorked ? (
+                          <Typography variant="caption" color="text.secondary">
+                            {log.hoursWorked} hrs
+                          </Typography>
+                        ) : null}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700, color: (Number(log.workCost) || 0) > 0 ? tokens.colors.success[700] : "#64748b" }}>
+                        +₹{(Number(log.workCost) || 0).toLocaleString("en-IN")}
+                      </TableCell>
                       <TableCell>
                         <Chip
                           label={log.status}
@@ -297,8 +316,21 @@ export function EmployeeWorkLogsPage() {
           <Box sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: `${tokens.borderRadius.md}px` }}>
             <Typography variant="caption" color="text.secondary" fontWeight={700}>PROJECT</Typography>
             <Typography variant="body1" fontWeight={700}>{selectedLog?.projectName || "General Activity"}</Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>HOURS LOGGED</Typography>
-            <Typography variant="body2">{selectedLog?.hoursWorked ? `${selectedLog.hoursWorked} hours` : "Not specified"}</Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5, mt: 1.5 }}>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>WORK UNITS / HOURS</Typography>
+                <Typography variant="body2" fontWeight={700}>
+                  {selectedLog?.workUnits !== undefined && selectedLog?.workUnits !== null ? `${selectedLog.workUnits} units` : "—"}
+                  {selectedLog?.hoursWorked ? ` (${selectedLog.hoursWorked} hrs)` : ""}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>COST ADDED TO PROJECT</Typography>
+                <Typography variant="body2" fontWeight={700} color={tokens.colors.success[700]}>
+                  +₹{(Number(selectedLog?.workCost) || 0).toLocaleString("en-IN")}
+                </Typography>
+              </Box>
+            </Box>
           </Box>
 
           <Box>
@@ -380,14 +412,37 @@ export function EmployeeWorkLogsPage() {
               </FormControl>
             </Box>
 
-            <TextField
-              label="Hours Worked"
-              type="number"
-              inputProps={{ min: 0, max: 24, step: 0.5 }}
-              fullWidth
-              value={hoursWorked}
-              onChange={(e) => setHoursWorked(e.target.value as any)}
-            />
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 2 }}>
+              <TextField
+                label="Hours Worked"
+                type="number"
+                inputProps={{ min: 0, max: 24, step: 0.5 }}
+                fullWidth
+                value={hoursWorked}
+                onChange={(e) => setHoursWorked(e.target.value as any)}
+                placeholder="e.g., 8"
+              />
+              <TextField
+                label="Work Units / Quantity Done"
+                type="number"
+                inputProps={{ min: 0, step: 0.1 }}
+                fullWidth
+                value={workUnits}
+                onChange={(e) => setWorkUnits(e.target.value as any)}
+                placeholder="e.g., 5"
+                helperText="Quantifiable units / tasks completed"
+              />
+              <TextField
+                label="Day's Work Cost (₹)"
+                type="number"
+                inputProps={{ min: 0, step: 100 }}
+                fullWidth
+                value={workCost}
+                onChange={(e) => setWorkCost(e.target.value as any)}
+                placeholder="e.g., 2500"
+                helperText="Accumulates onto total project budget"
+              />
+            </Box>
 
             <TextField
               label="Work Summary / Key Accomplishments"

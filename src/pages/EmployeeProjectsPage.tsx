@@ -31,10 +31,8 @@ import InputLabel from "@mui/material/InputLabel";
 import Divider from "@mui/material/Divider";
 import Tooltip from "@mui/material/Tooltip";
 
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditCalendarIcon from "@mui/icons-material/EditCalendar";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import AddTaskIcon from "@mui/icons-material/AddTask";
@@ -46,7 +44,6 @@ import {
   projectApi,
   type Project,
   type ProjectBillingSummary,
-  type ProjectInvoiceItem,
   type ProjectTask,
   type ProjectComment,
 } from "../services/projectApi";
@@ -57,18 +54,6 @@ export function EmployeeProjectsPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Bill Project Modal State
-  const [billingProject, setBillingProject] = useState<Project | null>(null);
-  const [billItems, setBillItems] = useState<ProjectInvoiceItem[]>([
-    { itemName: "Development & Engineering Hours", description: "Sprint deliverables", quantity: 1, unitPrice: 0 },
-  ]);
-  const [taxAmount, setTaxAmount] = useState<number>(0);
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [billNotes, setBillNotes] = useState<string>("");
-  const [submittingBill, setSubmittingBill] = useState(false);
-  const [billSuccessMsg, setBillSuccessMsg] = useState<string | null>(null);
-  const [billErrorMsg, setBillErrorMsg] = useState<string | null>(null);
 
   // Financial Status Modal State
   const [statusProject, setStatusProject] = useState<Project | null>(null);
@@ -238,73 +223,12 @@ export function EmployeeProjectsPage() {
     }
   };
 
-  const handleOpenBillModal = (project: Project) => {
-    setBillingProject(project);
-    setBillItems([
-      { itemName: "Project Deliverables & Services", description: `Billing for ${project.projectName}`, quantity: 1, unitPrice: 0 },
-    ]);
-    setTaxAmount(0);
-    setDiscountAmount(0);
-    setBillNotes("");
-    setBillSuccessMsg(null);
-    setBillErrorMsg(null);
-  };
-
   const handleOpenStatusModal = async (project: Project) => {
     setStatusProject(project);
     setLoadingSummary(true);
     const summary = await projectApi.getProjectBilling(project.id);
     setBillingSummary(summary);
     setLoadingSummary(false);
-  };
-
-  const handleAddItem = () => {
-    setBillItems((prev) => [...prev, { itemName: "", description: "", quantity: 1, unitPrice: 0 }]);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    setBillItems((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleItemChange = (index: number, field: keyof ProjectInvoiceItem, value: any) => {
-    setBillItems((prev) => {
-      const copy = [...prev];
-      copy[index] = { ...copy[index], [field]: value };
-      return copy;
-    });
-  };
-
-  const subtotal = billItems.reduce((acc, it) => acc + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0), 0);
-  const totalBill = Math.max(0, subtotal + (Number(taxAmount) || 0) - (Number(discountAmount) || 0));
-
-  const handleSubmitBill = async () => {
-    if (!billingProject) return;
-    if (billItems.length === 0 || billItems.some((i) => !i.itemName.trim() || Number(i.unitPrice) <= 0)) {
-      setBillErrorMsg("Please enter valid item names and positive unit prices for all items.");
-      return;
-    }
-
-    setSubmittingBill(true);
-    setBillErrorMsg(null);
-    try {
-      await projectApi.billProject(billingProject.id, {
-        projectId: billingProject.id,
-        customerId: billingProject.customer?.id,
-        items: billItems,
-        taxAmount: Number(taxAmount) || 0,
-        discountAmount: Number(discountAmount) || 0,
-        notes: billNotes,
-      });
-      setBillSuccessMsg("Project invoice generated and submitted to client billing successfully!");
-      setTimeout(() => {
-        setBillingProject(null);
-        setBillSuccessMsg(null);
-      }, 1500);
-    } catch (err: any) {
-      setBillErrorMsg(err?.response?.data?.message || "Failed to generate bill for this project. Check your permissions.");
-    } finally {
-      setSubmittingBill(false);
-    }
   };
 
   if (loading) {
@@ -411,7 +335,7 @@ export function EmployeeProjectsPage() {
                     </Box>
                   )}
 
-                  {/* Primary Update Button */}
+                  {/* Action Buttons */}
                   <Button
                     variant="contained"
                     size="small"
@@ -428,27 +352,15 @@ export function EmployeeProjectsPage() {
                     Update Progress & Tasks
                   </Button>
 
-                  {/* Secondary Action Buttons */}
-                  <Box sx={{ display: "flex", gap: 1, pt: 1, borderTop: `1px solid #f1f5f9` }}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<ReceiptLongIcon />}
-                      onClick={() => handleOpenBillModal(project)}
-                      sx={{ flex: 1, fontWeight: 700, borderRadius: `${tokens.borderRadius.sm}px`, textTransform: "none" }}
-                    >
-                      Bill Project
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<AccountBalanceWalletIcon />}
-                      onClick={() => handleOpenStatusModal(project)}
-                      sx={{ fontWeight: 700, borderRadius: `${tokens.borderRadius.sm}px`, textTransform: "none" }}
-                    >
-                      Financials
-                    </Button>
-                  </Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AccountBalanceWalletIcon />}
+                    onClick={() => handleOpenStatusModal(project)}
+                    sx={{ fontWeight: 700, borderRadius: `${tokens.borderRadius.sm}px`, textTransform: "none" }}
+                  >
+                    View Financials
+                  </Button>
                 </CardContent>
               </Card>
             );
@@ -783,129 +695,6 @@ export function EmployeeProjectsPage() {
         <DialogActions sx={{ p: 2 }}>
           <Button onClick={() => setUpdateProject(null)} sx={{ textTransform: "none", fontWeight: 700 }}>
             Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ========================================================================= */}
-      {/* BILL PROJECT DIALOG                                                       */}
-      {/* ========================================================================= */}
-      <Dialog open={Boolean(billingProject)} onClose={() => !submittingBill && setBillingProject(null)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>
-          Generate Bill / Invoice for {billingProject?.projectName}
-        </DialogTitle>
-        <DialogContent dividers>
-          {billSuccessMsg && <Alert severity="success" sx={{ mb: 2 }}>{billSuccessMsg}</Alert>}
-          {billErrorMsg && <Alert severity="error" sx={{ mb: 2 }}>{billErrorMsg}</Alert>}
-
-          <Box sx={{ mb: 2.5, p: 2, bgcolor: tokens.colors.secondary[50], borderRadius: `${tokens.borderRadius.sm}px` }}>
-            <Typography variant="body2" color="text.secondary">
-              Project: <strong>{billingProject?.projectName} ({billingProject?.projectCode})</strong>
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Client: <strong>{billingProject?.customer?.companyName || "Client"}</strong>
-            </Typography>
-          </Box>
-
-          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5 }}>
-            Line Items
-          </Typography>
-
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mb: 2.5 }}>
-            {billItems.map((item, idx) => (
-              <Box key={idx} sx={{ display: "flex", gap: 1, alignItems: "center", bgcolor: "#fff", p: 1.5, border: `1px solid ${tokens.colors.secondary[200]}`, borderRadius: `${tokens.borderRadius.sm}px` }}>
-                <TextField
-                  label="Item Name / Service"
-                  size="small"
-                  value={item.itemName}
-                  onChange={(e) => handleItemChange(idx, "itemName", e.target.value)}
-                  sx={{ flex: 2 }}
-                />
-                <TextField
-                  label="Description"
-                  size="small"
-                  value={item.description || ""}
-                  onChange={(e) => handleItemChange(idx, "description", e.target.value)}
-                  sx={{ flex: 2 }}
-                />
-                <TextField
-                  label="Qty / Hrs"
-                  type="number"
-                  size="small"
-                  value={item.quantity}
-                  onChange={(e) => handleItemChange(idx, "quantity", Number(e.target.value))}
-                  sx={{ width: 100 }}
-                />
-                <TextField
-                  label="Unit Price (₹)"
-                  type="number"
-                  size="small"
-                  value={item.unitPrice}
-                  onChange={(e) => handleItemChange(idx, "unitPrice", Number(e.target.value))}
-                  sx={{ width: 120 }}
-                />
-                <Typography variant="body2" fontWeight={700} sx={{ width: 100, textAlign: "right" }}>
-                  ₹{((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toLocaleString()}
-                </Typography>
-                <IconButton size="small" color="error" onClick={() => handleRemoveItem(idx)} disabled={billItems.length === 1}>
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            ))}
-            <Button startIcon={<AddIcon />} onClick={handleAddItem} sx={{ alignSelf: "flex-start", fontWeight: 700 }}>
-              Add Item
-            </Button>
-          </Box>
-
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, mb: 2.5 }}>
-            <TextField
-              label="Tax Amount (₹)"
-              type="number"
-              size="small"
-              value={taxAmount}
-              onChange={(e) => setTaxAmount(Number(e.target.value))}
-            />
-            <TextField
-              label="Discount Amount (₹)"
-              type="number"
-              size="small"
-              value={discountAmount}
-              onChange={(e) => setDiscountAmount(Number(e.target.value))}
-            />
-          </Box>
-
-          <TextField
-            label="Billing Notes / Milestones Completed"
-            multiline
-            rows={2}
-            fullWidth
-            size="small"
-            value={billNotes}
-            onChange={(e) => setBillNotes(e.target.value)}
-            sx={{ mb: 2.5 }}
-          />
-
-          <Box sx={{ p: 2, bgcolor: tokens.colors.primary[50], borderRadius: `${tokens.borderRadius.sm}px`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Typography variant="subtitle1" fontWeight={700} color={tokens.colors.primary[700]}>
-              Total Invoice Amount
-            </Typography>
-            <Typography variant="h5" fontWeight={800} color={tokens.colors.primary.main}>
-              ₹{totalBill.toLocaleString()}
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setBillingProject(null)} disabled={submittingBill}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmitBill}
-            disabled={submittingBill || totalBill <= 0}
-            startIcon={submittingBill ? <CircularProgress size={16} /> : <ReceiptLongIcon />}
-            sx={{ fontWeight: 700 }}
-          >
-            {submittingBill ? "Submitting Bill..." : "Create & Submit Bill"}
           </Button>
         </DialogActions>
       </Dialog>
