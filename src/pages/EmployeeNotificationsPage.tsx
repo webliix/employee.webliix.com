@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -9,10 +10,12 @@ import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import { tokens } from "../theme/tokens";
 import { notificationApi, type NotificationItem } from "../services/notificationApi";
 
 export function EmployeeNotificationsPage() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,6 +52,32 @@ export function EmployeeNotificationsPage() {
       setNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
     } catch (err) {
       console.error("Error marking all as read:", err);
+    }
+  };
+
+  const handleNotificationClick = async (n: NotificationItem) => {
+    if (n.status !== "READ") {
+      try {
+        await handleMarkAsRead(n.id);
+      } catch {}
+    }
+
+    const isProjectRelated =
+      n.referenceType === "PROJECT" ||
+      n.referenceType === "PROJECT_UPDATE" ||
+      n.title?.toLowerCase().includes("project") ||
+      n.message?.toLowerCase().includes("project");
+
+    if (isProjectRelated) {
+      if (n.referenceId) {
+        navigate(`/projects?projectId=${n.referenceId}`);
+      } else {
+        navigate("/projects");
+      }
+    } else if (n.referenceType === "TICKET" || n.title?.toLowerCase().includes("ticket")) {
+      navigate("/tickets");
+    } else if (n.referenceType === "PAYMENT" || n.title?.toLowerCase().includes("payment")) {
+      navigate("/payments");
     }
   };
 
@@ -96,11 +125,18 @@ export function EmployeeNotificationsPage() {
             return (
               <Card
                 key={n.id}
+                onClick={() => handleNotificationClick(n)}
                 sx={{
                   borderRadius: `${tokens.borderRadius.md}px`,
                   boxShadow: tokens.shadows.sm,
                   borderLeft: isUnread ? `4px solid ${tokens.colors.primary[600]}` : "1px solid #e2e8f0",
                   bgcolor: isUnread ? "#f8fafc" : "#ffffff",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover": {
+                    boxShadow: tokens.shadows.md,
+                    borderColor: tokens.colors.primary[300],
+                  },
                 }}
               >
                 <CardContent sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
@@ -121,16 +157,22 @@ export function EmployeeNotificationsPage() {
                     </Typography>
                   </Box>
 
-                  {isUnread && (
-                    <IconButton
-                      size="small"
-                      title="Mark as read"
-                      onClick={() => handleMarkAsRead(n.id)}
-                      sx={{ color: tokens.colors.primary[600] }}
-                    >
-                      <CheckCircleOutlineIcon fontSize="small" />
-                    </IconButton>
-                  )}
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    {isUnread && (
+                      <IconButton
+                        size="small"
+                        title="Mark as read"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(n.id);
+                        }}
+                        sx={{ color: tokens.colors.primary[600] }}
+                      >
+                        <CheckCircleOutlineIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    <ArrowForwardIosIcon sx={{ fontSize: 13, color: "#94a3b8" }} />
+                  </Box>
                 </CardContent>
               </Card>
             );

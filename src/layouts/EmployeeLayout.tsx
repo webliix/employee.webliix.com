@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -9,6 +9,10 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
+import Badge from "@mui/material/Badge";
+import Popover from "@mui/material/Popover";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import FolderSpecialOutlinedIcon from "@mui/icons-material/FolderSpecialOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
@@ -18,8 +22,10 @@ import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNone
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import { tokens } from "../theme/tokens";
 import { authService } from "../services/authService";
+import { notificationApi, type NotificationItem } from "../services/notificationApi";
 
 interface Props {
   children: ReactNode;
@@ -31,6 +37,73 @@ export function EmployeeLayout({ children }: Props) {
   const user = authService.getCurrentUser();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Notifications State
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
+  const [recentNotifications, setRecentNotifications] = useState<NotificationItem[]>([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  const loadUnreadCount = async () => {
+    try {
+      const count = await notificationApi.getUnreadCount();
+      setUnreadCount(typeof count === "number" ? count : 0);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    loadUnreadCount();
+    const timer = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleOpenNotifications = async (e: React.MouseEvent<HTMLElement>) => {
+    setNotifAnchorEl(e.currentTarget);
+    setLoadingNotifs(true);
+    try {
+      const list = await notificationApi.getMyNotifications();
+      setRecentNotifications(list.slice(0, 8));
+    } catch (err) {
+      console.error("Failed to load notifications", err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  const handleNotificationClick = async (item: NotificationItem) => {
+    setNotifAnchorEl(null);
+    if (item.status !== "READ") {
+      try {
+        await notificationApi.markAsRead(item.id);
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch {
+        // ignore
+      }
+    }
+
+    // Direct routing: if related to project, open project with parameter
+    const isProjectRelated =
+      item.referenceType === "PROJECT" ||
+      item.referenceType === "PROJECT_UPDATE" ||
+      item.title?.toLowerCase().includes("project") ||
+      item.message?.toLowerCase().includes("project");
+
+    if (isProjectRelated) {
+      if (item.referenceId) {
+        navigate(`/projects?projectId=${item.referenceId}`);
+      } else {
+        navigate("/projects");
+      }
+    } else if (item.referenceType === "TICKET" || item.title?.toLowerCase().includes("ticket")) {
+      navigate("/tickets");
+    } else if (item.referenceType === "PAYMENT" || item.title?.toLowerCase().includes("payment")) {
+      navigate("/payments");
+    } else {
+      navigate("/notifications");
+    }
+  };
 
   const handleLogout = () => {
     authService.logout();
@@ -157,7 +230,180 @@ export function EmployeeLayout({ children }: Props) {
             </Typography>
           </Box>
 
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            {/* Notification Bell with Badge */}
+            <IconButton
+              onClick={handleOpenNotifications}
+              size="medium"
+              sx={{
+                color: "#64748b",
+                "&:hover": { color: tokens.colors.primary[600], bgcolor: "rgba(37,99,235,0.06)" },
+              }}
+              aria-label="notifications"
+            >
+              <Badge badgeContent={unreadCount} color="error" max={99}>
+                <NotificationsNoneOutlinedIcon />
+              </Badge>
+            </IconButton>
+
+            {/* Notifications Popover Dropdown */}
+            <Popover
+              open={Boolean(notifAnchorEl)}
+              anchorEl={notifAnchorEl}
+              onClose={() => setNotifAnchorEl(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              PaperProps={{
+                sx: {
+                  width: 380,
+                  maxWidth: "92vw",
+                  maxHeight: 480,
+                  borderRadius: `${tokens.borderRadius.md}px`,
+                  boxShadow: tokens.shadows.lg,
+                  mt: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  p: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  borderBottom: "1px solid #e2e8f0",
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={700}>
+                    Notifications
+                  </Typography>
+                  {unreadCount > 0 && (
+                    <Chip
+                      label={`${unreadCount} new`}
+                      size="small"
+                      color="primary"
+                      sx={{ height: 20, fontSize: "0.6875rem", fontWeight: 700 }}
+                    />
+                  )}
+                </Box>
+                {unreadCount > 0 && (
+                  <Button
+                    size="small"
+                    onClick={async () => {
+                      try {
+                        await notificationApi.markAllAsRead();
+                        setUnreadCount(0);
+                        setRecentNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
+                      } catch {}
+                    }}
+                    sx={{ textTransform: "none", fontSize: "0.75rem", p: 0.5 }}
+                  >
+                    Mark all read
+                  </Button>
+                )}
+              </Box>
+
+              <Box sx={{ flex: 1, overflowY: "auto" }}>
+                {loadingNotifs ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : recentNotifications.length === 0 ? (
+                  <Box sx={{ p: 4, textAlign: "center" }}>
+                    <Typography variant="body2" color="text.secondary">
+                      No notifications yet
+                    </Typography>
+                  </Box>
+                ) : (
+                  recentNotifications.map((item) => {
+                    const isUnread = item.status !== "READ";
+                    return (
+                      <Box
+                        key={item.id}
+                        onClick={() => handleNotificationClick(item)}
+                        sx={{
+                          p: 2,
+                          cursor: "pointer",
+                          borderBottom: "1px solid #f1f5f9",
+                          bgcolor: isUnread ? "rgba(37,99,235,0.04)" : "#ffffff",
+                          "&:hover": { bgcolor: "rgba(37,99,235,0.08)" },
+                          transition: "background-color 0.2s",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 1.5,
+                        }}
+                      >
+                        {isUnread && (
+                          <Box
+                            sx={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              bgcolor: tokens.colors.primary[600],
+                              mt: 0.8,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mb: 0.3 }}>
+                            <Typography variant="body2" fontWeight={isUnread ? 700 : 600} noWrap>
+                              {item.title}
+                            </Typography>
+                            {item.referenceType && (
+                              <Chip
+                                label={item.referenceType}
+                                size="small"
+                                sx={{ height: 18, fontSize: "0.625rem", fontWeight: 700 }}
+                              />
+                            )}
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: "#475569",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            {item.message}
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mt: 0.5, fontSize: "0.6875rem" }}>
+                            {new Date(item.createdAt).toLocaleString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </Typography>
+                        </Box>
+                        <ArrowForwardIosIcon sx={{ fontSize: 12, color: "#94a3b8", mt: 1, flexShrink: 0 }} />
+                      </Box>
+                    );
+                  })
+                )}
+              </Box>
+
+              <Box sx={{ p: 1.5, borderTop: "1px solid #e2e8f0", textAlign: "center" }}>
+                <Button
+                  component={Link}
+                  to="/notifications"
+                  onClick={() => setNotifAnchorEl(null)}
+                  size="small"
+                  fullWidth
+                  sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.8125rem" }}
+                >
+                  View All Notifications
+                </Button>
+              </Box>
+            </Popover>
+
+            {/* Profile Avatar & Menu */}
             <Button
               onClick={(e) => setAnchorEl(e.currentTarget)}
               sx={{ textTransform: "none", color: "inherit", p: 0.5 }}

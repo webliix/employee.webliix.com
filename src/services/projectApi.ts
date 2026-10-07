@@ -117,6 +117,28 @@ export const projectApi = {
     const res = await http.post(`/api/v1/projects/${projectId}/comments`, { message: comment });
     return res.data?.data;
   },
+
+  async updateProjectProgress(
+    projectId: number,
+    progressPercentage?: number,
+    status?: string,
+    updateNote?: string
+  ): Promise<Project> {
+    const params: Record<string, any> = {};
+    if (progressPercentage !== undefined) params.progressPercentage = progressPercentage;
+    if (status) params.status = status;
+    if (updateNote) params.updateNote = updateNote;
+    const res = await http.patch(`/api/v1/projects/${projectId}/progress`, null, { params });
+    return res.data?.data;
+  },
+
+  async createProjectTask(
+    projectId: number,
+    task: { title: string; description?: string; status?: string; dueDate?: string; assignedTo?: number }
+  ): Promise<ProjectTask> {
+    const res = await http.post(`/api/v1/projects/${projectId}/tasks`, task);
+    return res.data?.data;
+  },
 };
 
 
