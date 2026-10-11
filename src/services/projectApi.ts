@@ -11,6 +11,29 @@ export interface ProjectTask {
   dueDate?: string;
 }
 
+export interface ProjectWorkLog {
+  id: number;
+  employeeId?: number;
+  employeeName?: string;
+  employeeCode?: string;
+  logDate: string;
+  workSummary: string;
+  hoursWorked?: number;
+  workUnits?: number;
+  workCost?: number;
+  projectId?: number;
+  projectName?: string;
+  taskId?: number;
+  taskTitle?: string;
+  tasksCompleted?: string;
+  blockers?: string;
+  status: string;
+  reviewedBy?: string;
+  reviewNotes?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+}
+
 export interface ProjectComment {
   id: number;
   projectId: number;
@@ -138,6 +161,11 @@ export const projectApi = {
   ): Promise<ProjectTask> {
     const res = await http.post(`/api/v1/projects/${projectId}/tasks`, task);
     return res.data?.data;
+  },
+
+  async getProjectWorkLogs(projectId: number): Promise<ProjectWorkLog[]> {
+    const res = await http.get(`/api/v1/projects/${projectId}/work-logs`);
+    return res.data?.data || [];
   },
 };
 

@@ -38,6 +38,7 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import AddTaskIcon from "@mui/icons-material/AddTask";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SendIcon from "@mui/icons-material/Send";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 
 import { tokens } from "../theme/tokens";
 import {
@@ -46,6 +47,7 @@ import {
   type ProjectBillingSummary,
   type ProjectTask,
   type ProjectComment,
+  type ProjectWorkLog,
 } from "../services/projectApi";
 
 export function EmployeeProjectsPage() {
@@ -85,6 +87,10 @@ export function EmployeeProjectsPage() {
   const [newComment, setNewComment] = useState("");
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // Daily Tasks & Work Logs sub-state
+  const [projectWorkLogs, setProjectWorkLogs] = useState<ProjectWorkLog[]>([]);
+  const [loadingWorkLogs, setLoadingWorkLogs] = useState(false);
+
   const fetchProjects = async () => {
     try {
       setLoading(true);
@@ -108,7 +114,7 @@ export function EmployeeProjectsPage() {
     fetchProjects();
   }, [highlightedProjectId]);
 
-  // Open Update Modal and load its tasks & comments
+  // Open Update Modal and load its tasks, comments & daily work logs
   const handleOpenUpdateModal = async (project: Project) => {
     setUpdateProject(project);
     setActiveTab(0);
@@ -118,21 +124,25 @@ export function EmployeeProjectsPage() {
     setProgressSuccess(null);
     setProgressError(null);
 
-    // Fetch tasks & comments for this project
+    // Fetch tasks, comments & work logs for this project
     setLoadingTasks(true);
     setLoadingComments(true);
+    setLoadingWorkLogs(true);
     try {
-      const [tasks, comments] = await Promise.all([
+      const [tasks, comments, workLogs] = await Promise.all([
         projectApi.getProjectTasks(project.id),
         projectApi.getProjectComments(project.id),
+        projectApi.getProjectWorkLogs(project.id),
       ]);
       setProjectTasks(tasks);
       setProjectComments(comments);
+      setProjectWorkLogs(workLogs);
     } catch (err) {
       console.error("Error loading project details:", err);
     } finally {
       setLoadingTasks(false);
       setLoadingComments(false);
+      setLoadingWorkLogs(false);
     }
   };
 
@@ -398,6 +408,7 @@ export function EmployeeProjectsPage() {
         <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
           <Tabs value={activeTab} onChange={(_, val) => setActiveTab(val)}>
             <Tab label="Progress & Status" icon={<EditCalendarIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
+            <Tab label={`Daily Tasks & Work Logs (${projectWorkLogs.length})`} icon={<AssignmentTurnedInIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Project Tasks (${projectTasks.length})`} icon={<AddTaskIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Updates & Activity (${projectComments.length})`} icon={<ChatBubbleOutlineIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
           </Tabs>
@@ -475,8 +486,123 @@ export function EmployeeProjectsPage() {
             </Box>
           )}
 
-          {/* TAB 1: Project Tasks */}
+          {/* TAB 1: Daily Tasks & Work Logs */}
           {activeTab === 1 && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, py: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+                <Box>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Daily Work Submissions & Cost Added
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    All tasks and incremental day-costs submitted by team members for this project
+                  </Typography>
+                </Box>
+                <Chip
+                  label={`Total Added: ₹${projectWorkLogs
+                    .reduce((sum, item) => sum + (Number(item.workCost) || 0), 0)
+                    .toLocaleString()}`}
+                  color="primary"
+                  variant="outlined"
+                  sx={{ fontWeight: 700 }}
+                />
+              </Box>
+
+              {loadingWorkLogs ? (
+                <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                  <CircularProgress size={28} />
+                </Box>
+              ) : projectWorkLogs.length === 0 ? (
+                <Card sx={{ p: 3, textAlign: "center", bgcolor: "#f8fafc", border: "1px dashed #cbd5e1" }}>
+                  <Typography variant="body2" color="text.secondary">
+                    No daily task updates or work logs submitted for this project yet.
+                  </Typography>
+                </Card>
+              ) : (
+                <TableContainer sx={{ border: "1px solid #e2e8f0", borderRadius: `${tokens.borderRadius.md}px`, maxHeight: 380 }}>
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: "#f8fafc" }}>
+                        <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Member</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Work / Task Note</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Hours/Units</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Day Cost Added</TableCell>
+                        <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {projectWorkLogs.map((log) => (
+                        <TableRow key={log.id} hover>
+                          <TableCell sx={{ whiteSpace: "nowrap", fontWeight: 600 }}>
+                            {log.logDate}
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            <Typography variant="body2" fontWeight={600}>
+                              {log.employeeName || "Employee"}
+                            </Typography>
+                            {log.employeeCode && (
+                              <Typography variant="caption" color="text.secondary">
+                                {log.employeeCode}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ maxWidth: 280 }}>
+                            <Typography variant="body2" fontWeight={600} sx={{ color: tokens.colors.secondary[900] }}>
+                              {log.workSummary}
+                            </Typography>
+                            {log.tasksCompleted && (
+                              <Typography variant="caption" color="text.secondary" display="block">
+                                <strong>Tasks:</strong> {log.tasksCompleted}
+                              </Typography>
+                            )}
+                            {log.taskTitle && (
+                              <Typography variant="caption" color="primary.main" display="block">
+                                <strong>Task:</strong> {log.taskTitle}
+                              </Typography>
+                            )}
+                            {log.blockers && (
+                              <Typography variant="caption" color="error.main" display="block">
+                                <strong>Blockers:</strong> {log.blockers}
+                              </Typography>
+                            )}
+                            {log.reviewNotes && (
+                              <Typography variant="caption" sx={{ fontStyle: "italic", color: "#64748b" }} display="block">
+                                <strong>Review Note:</strong> {log.reviewNotes}
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            {log.workUnits || log.hoursWorked ? `${log.workUnits || log.hoursWorked} hrs/units` : "—"}
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            {log.workCost && Number(log.workCost) > 0 ? (
+                              <Typography variant="body2" fontWeight={700} sx={{ color: tokens.colors.primary[700] }}>
+                                +₹{Number(log.workCost).toLocaleString()}
+                              </Typography>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">—</Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ whiteSpace: "nowrap" }}>
+                            <Chip
+                              label={log.status}
+                              size="small"
+                              color={log.status === "APPROVED" ? "success" : log.status === "REJECTED" ? "error" : "default"}
+                              sx={{ fontWeight: 700, fontSize: "0.7rem" }}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </Box>
+          )}
+
+          {/* TAB 2: Project Tasks */}
+          {activeTab === 2 && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3, py: 1 }}>
               {/* Quick Add Task */}
               <Box
@@ -616,8 +742,8 @@ export function EmployeeProjectsPage() {
             </Box>
           )}
 
-          {/* TAB 2: Activity & Updates Log */}
-          {activeTab === 2 && (
+          {/* TAB 3: Activity & Updates Log */}
+          {activeTab === 3 && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, py: 1 }}>
               {/* Add Comment Input */}
               <Box sx={{ display: "flex", gap: 1 }}>

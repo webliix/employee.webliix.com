@@ -56,8 +56,14 @@ export function EmployeeTicketsPage() {
 
     setSubmittingComment(true);
     try {
-      const added = await ticketApi.addComment(selectedTicket.id, newComment.trim());
-      setComments((prev) => [...prev, added]);
+      const authorName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : undefined;
+      const added = await ticketApi.addComment(selectedTicket.id, newComment.trim(), authorName);
+      if (added) {
+        setComments((prev) => [...prev, added]);
+      } else {
+        const comms = await ticketApi.getComments(selectedTicket.id);
+        setComments(comms);
+      }
       setNewComment("");
     } catch (err) {
       console.error("Failed to add comment:", err);

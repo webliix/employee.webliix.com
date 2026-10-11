@@ -43,8 +43,8 @@ export const ticketApi = {
     return res.data?.data || [];
   },
 
-  async addComment(ticketId: number, comment: string): Promise<TicketComment> {
-    const res = await http.post(`/api/v1/tickets/${ticketId}/comments`, { comment });
+  async addComment(ticketId: number, comment: string, commentedBy?: string): Promise<TicketComment> {
+    const res = await http.post(`/api/v1/tickets/${ticketId}/comments`, { comment, commentedBy });
     return res.data?.data;
   },
 };
