@@ -129,14 +129,16 @@ export function EmployeeProjectsPage() {
     setLoadingComments(true);
     setLoadingWorkLogs(true);
     try {
-      const [tasks, comments, workLogs] = await Promise.all([
+      const [tasks, comments, workLogs, billing] = await Promise.all([
         projectApi.getProjectTasks(project.id),
         projectApi.getProjectComments(project.id),
         projectApi.getProjectWorkLogs(project.id),
+        projectApi.getProjectBilling(project.id),
       ]);
       setProjectTasks(tasks);
       setProjectComments(comments);
       setProjectWorkLogs(workLogs);
+      setBillingSummary(billing);
     } catch (err) {
       console.error("Error loading project details:", err);
     } finally {
@@ -366,7 +368,10 @@ export function EmployeeProjectsPage() {
                     variant="outlined"
                     size="small"
                     startIcon={<AccountBalanceWalletIcon />}
-                    onClick={() => handleOpenStatusModal(project)}
+                    onClick={() => {
+                      handleOpenUpdateModal(project);
+                      setActiveTab(4);
+                    }}
                     sx={{ fontWeight: 700, borderRadius: `${tokens.borderRadius.sm}px`, textTransform: "none" }}
                   >
                     View Financials
@@ -411,6 +416,7 @@ export function EmployeeProjectsPage() {
             <Tab label={`Daily Tasks & Work Logs (${projectWorkLogs.length})`} icon={<AssignmentTurnedInIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Project Tasks (${projectTasks.length})`} icon={<AddTaskIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Updates & Activity (${projectComments.length})`} icon={<ChatBubbleOutlineIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
+            <Tab label="Finances & Invoices" icon={<AccountBalanceWalletIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
           </Tabs>
         </Box>
 
@@ -812,6 +818,95 @@ export function EmployeeProjectsPage() {
                       </Typography>
                     </Box>
                   ))}
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* TAB 4: Finances & Invoices */}
+          {activeTab === 4 && (
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, py: 1 }}>
+              {billingSummary ? (
+                <>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(4, 1fr)" }, gap: 2 }}>
+                    <Box sx={{ p: 2, borderRadius: `${tokens.borderRadius.sm}px`, bgcolor: tokens.colors.secondary[50], border: `1px solid ${tokens.colors.secondary[200]}` }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight={700}>CONTRACT BUDGET</Typography>
+                      <Typography variant="h6" fontWeight={800}>
+                        {billingSummary.budget ? `₹${billingSummary.budget.toLocaleString()}` : "Custom"}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 2, borderRadius: `${tokens.borderRadius.sm}px`, bgcolor: tokens.colors.primary[50], border: `1px solid ${tokens.colors.primary[100]}` }}>
+                      <Typography variant="caption" color={tokens.colors.primary[700]} fontWeight={700}>TOTAL BILLED</Typography>
+                      <Typography variant="h6" fontWeight={800} color={tokens.colors.primary.main}>
+                        ₹{(billingSummary.totalBilled || 0).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 2, borderRadius: `${tokens.borderRadius.sm}px`, bgcolor: tokens.colors.success[50], border: `1px solid ${tokens.colors.success[100]}` }}>
+                      <Typography variant="caption" color={tokens.colors.success[700]} fontWeight={700}>TOTAL PAID</Typography>
+                      <Typography variant="h6" fontWeight={800} color={tokens.colors.success[700]}>
+                        ₹{(billingSummary.totalPaid || 0).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ p: 2, borderRadius: `${tokens.borderRadius.sm}px`, bgcolor: tokens.colors.warning[50], border: `1px solid ${tokens.colors.warning[100]}` }}>
+                      <Typography variant="caption" color={tokens.colors.warning[700]} fontWeight={700}>REMAINING BALANCE</Typography>
+                      <Typography variant="h6" fontWeight={800} color={tokens.colors.warning[700]}>
+                        ₹{(billingSummary.remainingProjectBalance || 0).toLocaleString()}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Project Invoices ({billingSummary.invoices?.length || 0})
+                  </Typography>
+
+                  {billingSummary.invoices && billingSummary.invoices.length > 0 ? (
+                    <TableContainer sx={{ border: `1px solid ${tokens.colors.secondary[200]}`, borderRadius: `${tokens.borderRadius.sm}px` }}>
+                      <Table size="small">
+                        <TableHead sx={{ bgcolor: tokens.colors.secondary[100] }}>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>Invoice #</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Issue Date</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Paid</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Pending</TableCell>
+                            <TableCell sx={{ fontWeight: 700 }}>Status</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {billingSummary.invoices.map((inv: any) => (
+                            <TableRow key={inv.id}>
+                              <TableCell sx={{ fontWeight: 700 }}>{inv.invoiceNumber}</TableCell>
+                              <TableCell>{inv.issueDate || "—"}</TableCell>
+                              <TableCell sx={{ fontWeight: 700 }}>₹{(inv.totalAmount || 0).toLocaleString()}</TableCell>
+                              <TableCell sx={{ color: tokens.colors.success[700] }}>₹{(inv.paidAmount || 0).toLocaleString()}</TableCell>
+                              <TableCell sx={{ color: inv.pendingAmount > 0 ? tokens.colors.warning[700] : "text.secondary" }}>
+                                ₹{(inv.pendingAmount || 0).toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Chip
+                                  label={inv.status}
+                                  size="small"
+                                  color={inv.status === "PAID" ? "success" : inv.status === "PARTIALLY_PAID" ? "info" : "warning"}
+                                  sx={{ fontWeight: 700 }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: "italic", textAlign: "center", py: 2 }}>
+                      No invoices generated yet for this project.
+                    </Typography>
+                  )}
+                </>
+              ) : (
+                <Box sx={{ p: 4, textAlign: "center" }}>
+                  <CircularProgress size={28} />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Loading project financial and billing breakdown...
+                  </Typography>
                 </Box>
               )}
             </Box>
