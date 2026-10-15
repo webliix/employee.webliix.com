@@ -12,10 +12,11 @@ import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import CircularProgress from "@mui/material/CircularProgress";
 import { tokens } from "../theme/tokens";
-import { authService } from "../services/authService";
+import { useAuth } from "../auth/AuthProvider";
 
 export function EmployeeLoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,25 +28,14 @@ export function EmployeeLoginPage() {
     setLoading(true);
 
     try {
-      const data = await authService.login(email, password);
-      const user = data?.user;
-
-      // Validate employee or staff role
-      const roles: string[] = user?.roles || [];
-      const isEmployeeOrStaff = roles.some((r) =>
-        ["EMPLOYEE", "ROLE_EMPLOYEE", "ADMIN", "ROLE_ADMIN", "SUPER_ADMIN", "ROLE_SUPER_ADMIN", "MANAGER", "ROLE_MANAGER"].includes(r)
-      );
-
-      if (!isEmployeeOrStaff) {
-        authService.logout();
-        setError("Access denied: You do not have an active employee account. Please contact your manager.");
-        setLoading(false);
-        return;
+      const res = await login(email, password);
+      if (res.success) {
+        navigate(res.firstPath || "/dashboard");
+      } else {
+        setError(res.error || "Failed to sign in. Please verify your credentials.");
       }
-
-      navigate("/dashboard");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Invalid email or password. Please try again.");
+      setError(err?.message || "Invalid email or password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -84,7 +74,7 @@ export function EmployeeLoginPage() {
               Employee Portal
             </Typography>
             <Typography variant="body2" sx={{ color: "#64748b" }}>
-              Log in to manage tasks, daily work logs & tickets
+              Sign in with your workspace credentials
             </Typography>
           </Box>
 

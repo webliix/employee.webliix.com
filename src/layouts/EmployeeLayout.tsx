@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -12,20 +12,22 @@ import Drawer from "@mui/material/Drawer";
 import Badge from "@mui/material/Badge";
 import Popover from "@mui/material/Popover";
 import Chip from "@mui/material/Chip";
+import Collapse from "@mui/material/Collapse";
 import CircularProgress from "@mui/material/CircularProgress";
-import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
-import FolderSpecialOutlinedIcon from "@mui/icons-material/FolderSpecialOutlined";
-import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
-import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
-import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import { tokens } from "../theme/tokens";
-import { authService } from "../services/authService";
+import { useAuth } from "../auth/AuthProvider";
+import { usePermissions } from "../auth/usePermissions";
+import { getMenuIcon } from "../utils/iconRegistry";
 import { notificationApi, type NotificationItem } from "../services/notificationApi";
+import { http } from "../services/http";
+import type { NavigationItem } from "../types/auth";
 
 interface Props {
   children: ReactNode;
@@ -34,15 +36,22 @@ interface Props {
 export function EmployeeLayout({ children }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const user = authService.getCurrentUser();
+  const { user, navigation, logout } = useAuth();
+  const { can } = usePermissions();
+
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Notifications State
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const [recentNotifications, setRecentNotifications] = useState<NotificationItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  // Pending Approvals Badges
+  const [pendingExpensesCount, setPendingExpensesCount] = useState<number>(0);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
 
   const loadUnreadCount = async () => {
     try {
@@ -53,11 +62,36 @@ export function EmployeeLayout({ children }: Props) {
     }
   };
 
+  const loadPendingCounts = async () => {
+    if (can("EXPENSES_APPROVE")) {
+      try {
+        const res = await http.get("/api/v1/expenses", { params: { status: "PENDING", page: 0, size: 1 } });
+        const total = res.data?.data?.totalElements || 0;
+        setPendingExpensesCount(total);
+      } catch {
+        // ignore
+      }
+    }
+    if (can("PAYMENT_SUBMISSIONS_REVIEW")) {
+      try {
+        const res = await http.get("/api/v1/payment-submissions", { params: { status: "PENDING_REVIEW", page: 0, size: 1 } });
+        const total = res.data?.data?.totalElements || 0;
+        setPendingPaymentsCount(total);
+      } catch {
+        // ignore
+      }
+    }
+  };
+
   useEffect(() => {
     loadUnreadCount();
-    const timer = setInterval(loadUnreadCount, 30000);
+    loadPendingCounts();
+    const timer = setInterval(() => {
+      loadUnreadCount();
+      loadPendingCounts();
+    }, 45000);
     return () => clearInterval(timer);
-  }, []);
+  }, [can]);
 
   const handleOpenNotifications = async (e: React.MouseEvent<HTMLElement>) => {
     setNotifAnchorEl(e.currentTarget);
@@ -83,7 +117,6 @@ export function EmployeeLayout({ children }: Props) {
       }
     }
 
-    // Direct routing: if related to project, open project with parameter
     const isProjectRelated =
       item.referenceType === "PROJECT" ||
       item.referenceType === "PROJECT_UPDATE" ||
@@ -105,20 +138,81 @@ export function EmployeeLayout({ children }: Props) {
     }
   };
 
-  const handleLogout = () => {
-    authService.logout();
-    navigate("/login");
+  const toggleSection = (moduleName: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [moduleName]: !prev[moduleName],
+    }));
   };
 
-  const navItems = [
-    { label: "Dashboard", path: "/dashboard", icon: <DashboardOutlinedIcon fontSize="small" /> },
-    { label: "My Projects", path: "/projects", icon: <FolderSpecialOutlinedIcon fontSize="small" /> },
-    { label: "Daily Work Log", path: "/work-logs", icon: <AssignmentOutlinedIcon fontSize="small" /> },
-    { label: "Assigned Tickets", path: "/tickets", icon: <ConfirmationNumberOutlinedIcon fontSize="small" /> },
-    { label: "Payment Submissions", path: "/payments", icon: <PaymentsOutlinedIcon fontSize="small" /> },
-    { label: "Notifications", path: "/notifications", icon: <NotificationsNoneOutlinedIcon fontSize="small" /> },
-    { label: "My Profile", path: "/profile", icon: <PersonOutlinedIcon fontSize="small" /> },
-  ];
+  // Compile active navigation list: server-driven navigation + self-service employee essentials
+  const computedNavItems = useMemo<NavigationItem[]>(() => {
+    const list: NavigationItem[] = [];
+
+    // If server sent navigation, use it as the source of truth
+    if (navigation && navigation.length > 0) {
+      navigation.forEach((item) => list.push(item));
+    } else {
+      // Permission-based client fallback during initial transition
+      if (can("DASHBOARD_VIEW") || can("EMPLOYEE_PORTAL_ACCESS")) {
+        list.push({ key: "dashboard", label: "Dashboard", path: "/dashboard", icon: "DashboardOutlined", module: "Overview" });
+      }
+      if (can("PROJECTS_VIEW")) {
+        list.push({ key: "projects", label: "My Projects", path: "/projects", icon: "FolderSpecialOutlined", module: "Delivery" });
+      }
+      if (can("WORKLOGS_VIEW") || can("WORKLOGS_SUBMIT")) {
+        list.push({ key: "worklogs", label: "Daily Work Log", path: "/work-logs", icon: "AssignmentOutlined", module: "Delivery" });
+      }
+      if (can("TICKETS_VIEW")) {
+        list.push({ key: "tickets", label: "Assigned Tickets", path: "/tickets", icon: "ConfirmationNumberOutlined", module: "Delivery" });
+      }
+      if (can("PAYMENT_SUBMISSIONS_VIEW") || can("PAYMENT_SUBMISSIONS_SUBMIT")) {
+        list.push({ key: "payments", label: "Payment Submissions", path: "/payments", icon: "PaymentsOutlined", module: "Finance" });
+      }
+      if (can("EXPENSES_VIEW")) {
+        list.push({ key: "expenses", label: "Expenses", path: "/expenses", icon: "AccountBalanceWalletOutlined", module: "Finance" });
+      }
+    }
+
+    // Always append self-service utilities if not already present in navigation
+    const hasWorkLogs = list.some((i) => i.path === "/work-logs");
+    if (!hasWorkLogs && (can("WORKLOGS_VIEW") || can("WORKLOGS_SUBMIT"))) {
+      list.push({ key: "worklogs", label: "Daily Work Log", path: "/work-logs", icon: "AssignmentOutlined", module: "Delivery" });
+    }
+    const hasNotifications = list.some((i) => i.path === "/notifications");
+    if (!hasNotifications) {
+      list.push({ key: "notifications", label: "Notifications", path: "/notifications", icon: "NotificationsNoneOutlined", module: "Preferences" });
+    }
+    const hasProfile = list.some((i) => i.path === "/profile");
+    if (!hasProfile) {
+      list.push({ key: "profile", label: "My Profile", path: "/profile", icon: "PersonOutlined", module: "Preferences" });
+    }
+
+    return list;
+  }, [navigation, can]);
+
+  // Group items by module for structured collapsible sidebar
+  const groupedModules = useMemo(() => {
+    const groups: Record<string, NavigationItem[]> = {};
+    computedNavItems.forEach((item) => {
+      const mod = item.module || "General";
+      if (!groups[mod]) {
+        groups[mod] = [];
+      }
+      groups[mod].push(item);
+    });
+    return groups;
+  }, [computedNavItems]);
+
+  const getBadgeCount = (item: NavigationItem): number => {
+    if (item.path === "/expenses" || item.key === "expenses") {
+      return pendingExpensesCount;
+    }
+    if (item.path === "/payments" || item.path === "/payment-submissions" || item.key === "payments") {
+      return pendingPaymentsCount;
+    }
+    return 0;
+  };
 
   const sidebarContent = (
     <Box sx={{ width: 260, height: "100%", bgcolor: "#0f172a", color: "#ffffff", display: "flex", flexDirection: "column" }}>
@@ -140,35 +234,91 @@ export function EmployeeLayout({ children }: Props) {
         </Box>
       </Box>
 
-      {/* Nav List */}
-      <Box sx={{ flex: 1, py: 3, px: 2, display: "flex", flexDirection: "column", gap: 0.5 }}>
-        {navItems.map((item) => {
-          const active = location.pathname.startsWith(item.path);
+      {/* Nav List Grouped by Module */}
+      <Box sx={{ flex: 1, py: 2, px: 1.5, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+        {Object.entries(groupedModules).map(([moduleName, items]) => {
+          const isCollapsed = !!collapsedSections[moduleName];
           return (
-            <Button
-              key={item.path}
-              component={Link}
-              to={item.path}
-              onClick={() => setMobileOpen(false)}
-              startIcon={item.icon}
-              sx={{
-                justifyContent: "flex-start",
-                px: 2,
-                py: 1.2,
-                borderRadius: `${tokens.borderRadius.md}px`,
-                color: active ? "#ffffff" : "#94a3b8",
-                bgcolor: active ? tokens.colors.primary[600] : "transparent",
-                fontWeight: active ? 700 : 500,
-                fontSize: "0.875rem",
-                textTransform: "none",
-                "&:hover": {
-                  bgcolor: active ? tokens.colors.primary[700] : "rgba(255,255,255,0.05)",
-                  color: "#ffffff",
-                },
-              }}
-            >
-              {item.label}
-            </Button>
+            <Box key={moduleName} sx={{ mb: 0.5 }}>
+              <Box
+                onClick={() => toggleSection(moduleName)}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  px: 1.5,
+                  py: 0.5,
+                  cursor: "pointer",
+                  borderRadius: "4px",
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "#64748b",
+                    fontWeight: 800,
+                    fontSize: "0.6875rem",
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {moduleName}
+                </Typography>
+                {isCollapsed ? (
+                  <ExpandMoreIcon sx={{ fontSize: 16, color: "#64748b" }} />
+                ) : (
+                  <ExpandLessIcon sx={{ fontSize: 16, color: "#64748b" }} />
+                )}
+              </Box>
+
+              <Collapse in={!isCollapsed} timeout="auto" unmountOnExit>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4, mt: 0.5 }}>
+                  {items.map((item) => {
+                    const active = location.pathname === item.path || (item.path !== "/" && item.path !== "/dashboard" && location.pathname.startsWith(item.path));
+                    const badge = getBadgeCount(item);
+
+                    return (
+                      <Button
+                        key={item.key || item.path}
+                        component={Link}
+                        to={item.path}
+                        onClick={() => setMobileOpen(false)}
+                        startIcon={getMenuIcon(item.icon || item.key)}
+                        sx={{
+                          justifyContent: "flex-start",
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: `${tokens.borderRadius.md}px`,
+                          color: active ? "#ffffff" : "#94a3b8",
+                          bgcolor: active ? tokens.colors.primary[600] : "transparent",
+                          fontWeight: active ? 700 : 500,
+                          fontSize: "0.84rem",
+                          textTransform: "none",
+                          position: "relative",
+                          "&:hover": {
+                            bgcolor: active ? tokens.colors.primary[700] : "rgba(255,255,255,0.06)",
+                            color: "#ffffff",
+                          },
+                        }}
+                      >
+                        <Box sx={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {item.label}
+                        </Box>
+                        {badge > 0 && (
+                          <Chip
+                            label={badge}
+                            size="small"
+                            color="error"
+                            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 800, ml: 1 }}
+                          />
+                        )}
+                      </Button>
+                    );
+                  })}
+                </Box>
+              </Collapse>
+            </Box>
           );
         })}
       </Box>
@@ -176,7 +326,7 @@ export function EmployeeLayout({ children }: Props) {
       {/* Footer Info */}
       <Box sx={{ p: 2, borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 1.5 }}>
         <Avatar sx={{ width: 36, height: 36, bgcolor: tokens.colors.primary[500], fontSize: "0.875rem", fontWeight: 700 }}>
-          {user?.firstName ? user.firstName[0].toUpperCase() : "E"}
+          {user?.firstName ? user.firstName[0].toUpperCase() : "U"}
         </Avatar>
         <Box sx={{ overflow: "hidden", flex: 1 }}>
           <Typography variant="body2" fontWeight={600} noWrap>
@@ -200,7 +350,11 @@ export function EmployeeLayout({ children }: Props) {
       </Box>
 
       {/* Mobile Drawer */}
-      <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} sx={{ display: { xs: "block", md: "none" } }}>
+      <Drawer
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        sx={{ display: { xs: "block", md: "none" } }}
+      >
         {sidebarContent}
       </Drawer>
 
@@ -210,7 +364,7 @@ export function EmployeeLayout({ children }: Props) {
         <Box
           sx={{
             height: 64,
-            px: 3,
+            px: { xs: 2, sm: 3 },
             bgcolor: "#ffffff",
             borderBottom: "1px solid #e2e8f0",
             display: "flex",
@@ -409,7 +563,7 @@ export function EmployeeLayout({ children }: Props) {
               sx={{ textTransform: "none", color: "inherit", p: 0.5 }}
             >
               <Avatar sx={{ width: 34, height: 34, bgcolor: tokens.colors.primary[600], fontSize: "0.875rem" }}>
-                {user?.firstName ? user.firstName[0].toUpperCase() : "E"}
+                {user?.firstName ? user.firstName[0].toUpperCase() : "U"}
               </Avatar>
             </Button>
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
@@ -417,7 +571,7 @@ export function EmployeeLayout({ children }: Props) {
                 <PersonOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Profile Settings
               </MenuItem>
               <Divider />
-              <MenuItem onClick={() => { setAnchorEl(null); handleLogout(); }} sx={{ color: "error.main" }}>
+              <MenuItem onClick={() => { setAnchorEl(null); logout(); }} sx={{ color: "error.main" }}>
                 <LogoutOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Sign Out
               </MenuItem>
             </Menu>

@@ -1,16 +1,6 @@
 import { http } from "./http";
-
-export interface UserProfile {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  jobTitle?: string;
-  department?: string;
-  roles?: string[];
-  permissions?: string[];
-}
+import type { AuthMeResponse, UserProfile } from "../types/auth";
+export type { UserProfile } from "../types/auth";
 
 export interface EmployeeProfile {
   id: number;
@@ -28,26 +18,19 @@ export interface EmployeeProfile {
 }
 
 export const authService = {
-  async login(email: string, password: string):Promise<any> {
+  async login(email: string, password: string): Promise<any> {
     const res = await http.post("/api/v1/auth/login", { email, password });
     const data = res.data?.data || res.data;
     if (data?.accessToken) {
       localStorage.setItem("employee_token", data.accessToken);
     }
-    if (data?.user) {
-      localStorage.setItem("employee_user", JSON.stringify(data.user));
-    }
+    // employee_user is intentionally not stored here; GET /api/v1/auth/me is the single source of truth
     return data;
   },
 
-  getCurrentUser(): UserProfile | null {
-    const raw = localStorage.getItem("employee_user");
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
+  async getAuthMe(): Promise<AuthMeResponse> {
+    const res = await http.get("/api/v1/auth/me");
+    return res.data?.data;
   },
 
   getToken(): string | null {
@@ -60,7 +43,6 @@ export const authService = {
 
   logout(): void {
     localStorage.removeItem("employee_token");
-    localStorage.removeItem("employee_user");
   },
 
   async fetchMyEmployeeProfile(): Promise<EmployeeProfile> {

@@ -10,16 +10,16 @@ import CircularProgress from "@mui/material/CircularProgress";
 import SendIcon from "@mui/icons-material/Send";
 import { tokens } from "../theme/tokens";
 import { ticketApi, type Ticket, type TicketComment } from "../services/ticketApi";
-import { authService } from "../services/authService";
+import { useAuth } from "../auth/AuthProvider";
 
 export function EmployeeTicketsPage() {
+  const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [comments, setComments] = useState<TicketComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
-  const user = authService.getCurrentUser();
 
   const fetchTickets = async () => {
     try {

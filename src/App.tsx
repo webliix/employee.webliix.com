@@ -1,95 +1,75 @@
+import { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { type ReactNode } from "react";
-import { authService } from "./services/authService";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import { AuthProvider } from "./auth/AuthProvider";
 import { EmployeeLayout } from "./layouts/EmployeeLayout";
 import { EmployeeLoginPage } from "./pages/EmployeeLoginPage";
-import { EmployeeDashboardPage } from "./pages/EmployeeDashboardPage";
-import { EmployeeProjectsPage } from "./pages/EmployeeProjectsPage";
-import { EmployeeWorkLogsPage } from "./pages/EmployeeWorkLogsPage";
-import { EmployeeTicketsPage } from "./pages/EmployeeTicketsPage";
-import { EmployeePaymentsPage } from "./pages/EmployeePaymentsPage";
-import { EmployeeNotificationsPage } from "./pages/EmployeeNotificationsPage";
-import { EmployeeProfilePage } from "./pages/EmployeeProfilePage";
+import { RequirePermission } from "./components/RequirePermission";
+import { NotFound404Page } from "./components/NotFound404Page";
+import { routeRegistry } from "./routes/registry";
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  if (!authService.isAuthenticated()) {
-    return <Navigate to="/login" replace />;
-  }
-  return <EmployeeLayout>{children}</EmployeeLayout>;
+function PageLoader() {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "50vh",
+      }}
+    >
+      <CircularProgress size={36} />
+    </Box>
+  );
 }
 
 export function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<EmployeeLoginPage />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/login" element={<EmployeeLoginPage />} />
 
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <EmployeeDashboardPage />
-            </ProtectedRoute>
-          }
-        />
+            {Object.values(routeRegistry).map((route) => {
+              const Component = route.component;
+              return (
+                <Route
+                  key={route.path}
+                  path={route.path}
+                  element={
+                    <RequirePermission
+                      permission={route.permission}
+                      anyOf={route.anyOf}
+                    >
+                      <EmployeeLayout>
+                        <Component />
+                      </EmployeeLayout>
+                    </RequirePermission>
+                  }
+                />
+              );
+            })}
 
-        <Route
-          path="/projects"
-          element={
-            <ProtectedRoute>
-              <EmployeeProjectsPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Root redirect to dashboard */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        <Route
-          path="/work-logs"
-          element={
-            <ProtectedRoute>
-              <EmployeeWorkLogsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/tickets"
-          element={
-            <ProtectedRoute>
-              <EmployeeTicketsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/payments"
-          element={
-            <ProtectedRoute>
-              <EmployeePaymentsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/notifications"
-          element={
-            <ProtectedRoute>
-              <EmployeeNotificationsPage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/profile"
-          element={
-            <ProtectedRoute>
-              <EmployeeProfilePage />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </BrowserRouter>
+            {/* 404 handler for unknown paths */}
+            <Route
+              path="*"
+              element={
+                <RequirePermission anyOf={["EMPLOYEE_PORTAL_ACCESS", "DASHBOARD_VIEW"]}>
+                  <EmployeeLayout>
+                    <NotFound404Page />
+                  </EmployeeLayout>
+                </RequirePermission>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

@@ -12,15 +12,15 @@ import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
 import WorkOutlineOutlinedIcon from "@mui/icons-material/WorkOutlineOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import { tokens } from "../theme/tokens";
-import { authService, type EmployeeProfile, type UserProfile } from "../services/authService";
+import { authService, type EmployeeProfile } from "../services/authService";
+import { useAuth } from "../auth/AuthProvider";
 
 export function EmployeeProfilePage() {
+  const { user } = useAuth();
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
-  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setUser(authService.getCurrentUser());
     authService
       .fetchMyEmployeeProfile()
       .then((data) => setProfile(data))

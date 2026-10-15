@@ -8,6 +8,7 @@ export const http = axios.create({
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",
+    "X-Portal": "EMPLOYEE",
   },
 });
 
@@ -22,17 +23,40 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      const url = error.config?.url || "";
+    const status = error.response?.status;
+    const url = error.config?.url || "";
+
+    if (status === 401) {
       if (!url.includes("/auth/login")) {
         console.warn("Employee session expired or unauthorized:", url);
         localStorage.removeItem("employee_token");
-        localStorage.removeItem("employee_user");
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";
         }
       }
+    } else if (status === 403) {
+      const data = error.response?.data || {};
+      if (import.meta.env.DEV) {
+        console.warn("[RBAC 403 Forbidden]", {
+          url,
+          code: data.code,
+          requiredPermission: data.requiredPermission,
+          message: data.message,
+        });
+      }
+      // Dispatch event to show notification / toast
+      window.dispatchEvent(
+        new CustomEvent("webliix:notification", {
+          detail: {
+            type: "error",
+            message: data.message || "You do not have permission for this action.",
+          },
+        })
+      );
+      // Dispatch event to refresh /auth/me permissions in background
+      window.dispatchEvent(new CustomEvent("webliix:auth:refresh"));
     }
+
     return Promise.reject(error);
   }
 );

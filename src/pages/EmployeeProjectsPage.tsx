@@ -393,7 +393,7 @@ export function EmployeeProjectsPage() {
         fullWidth
         PaperProps={{ sx: { borderRadius: `${tokens.borderRadius.lg}px` } }}
       >
-        <DialogTitle sx={{ fontWeight: 800, pb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <DialogTitle sx={{ fontWeight: 800, pb: 1, display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, gap: 1 }}>
           <Box>
             <Typography variant="h6" fontWeight={800}>
               {updateProject?.projectName}
@@ -410,8 +410,17 @@ export function EmployeeProjectsPage() {
           />
         </DialogTitle>
 
-        <Box sx={{ borderBottom: 1, borderColor: "divider", px: 3 }}>
-          <Tabs value={activeTab} onChange={(_, val) => setActiveTab(val)}>
+        <Box sx={{ borderBottom: 1, borderColor: "divider", px: { xs: 1, sm: 3 }, width: "100%", overflowX: "auto" }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, val) => setActiveTab(val)}
+            variant="scrollable"
+            scrollButtons="auto"
+            allowScrollButtonsMobile
+            sx={{
+              "& .MuiTab-root": { minHeight: 48, whiteSpace: "nowrap" }
+            }}
+          >
             <Tab label="Progress & Status" icon={<EditCalendarIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Daily Tasks & Work Logs (${projectWorkLogs.length})`} icon={<AssignmentTurnedInIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
             <Tab label={`Project Tasks (${projectTasks.length})`} icon={<AddTaskIcon />} iconPosition="start" sx={{ fontWeight: 700 }} />
