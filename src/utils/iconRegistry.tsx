@@ -21,6 +21,8 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
+import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 
 const ICON_MAP: Record<string, React.ReactElement> = {
   DashboardOutlined: <DashboardOutlinedIcon fontSize="small" />,
@@ -70,6 +72,10 @@ const ICON_MAP: Record<string, React.ReactElement> = {
   worklogs: <AssignmentOutlinedIcon fontSize="small" />,
   notifications: <NotificationsNoneOutlinedIcon fontSize="small" />,
   profile: <PersonOutlinedIcon fontSize="small" />,
+  EventAvailableOutlined: <EventAvailableOutlinedIcon fontSize="small" />,
+  FactCheckOutlined: <FactCheckOutlinedIcon fontSize="small" />,
+  attendance: <EventAvailableOutlinedIcon fontSize="small" />,
+  leaves: <FactCheckOutlinedIcon fontSize="small" />,
 };
 
 export function getMenuIcon(iconKey?: string): React.ReactElement {

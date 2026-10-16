@@ -43,6 +43,17 @@ export const routeRegistry: Record<string, AppRouteDefinition> = {
     anyOf: ["WORKLOGS_VIEW", "WORKLOGS_SUBMIT", "EMPLOYEE_PORTAL_ACCESS"],
     title: "Daily Work Log",
   },
+  attendance: {
+    key: "attendance",
+    path: "/attendance",
+    component: lazy(() =>
+      import("../pages/EmployeeAttendanceLeavePage").then((m) => ({
+        default: m.EmployeeAttendanceLeavePage,
+      }))
+    ),
+    anyOf: ["ATTENDANCE_VIEW", "LEAVE_VIEW", "EMPLOYEE_PORTAL_ACCESS"],
+    title: "Attendance & Leaves",
+  },
   tickets: {
     key: "tickets",
     path: "/tickets",

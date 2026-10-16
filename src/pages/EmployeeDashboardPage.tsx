@@ -403,6 +403,15 @@ export function EmployeeDashboardPage() {
                   ✓ Shift complete ({todayAttendance?.workingHours ? `${todayAttendance.workingHours.toFixed(1)} hrs` : "Logged"})
                 </Typography>
               )}
+              <Button
+                component={Link}
+                to="/attendance"
+                size="small"
+                variant="text"
+                sx={{ textTransform: "none", fontSize: "0.72rem", p: 0, mt: 0.5, fontWeight: 700, color: tokens.colors.primary.main }}
+              >
+                View History & Clock Details →
+              </Button>
             </Box>
           </CardContent>
         </Card>
@@ -414,11 +423,15 @@ export function EmployeeDashboardPage() {
               <Box sx={{ p: 1.25, borderRadius: `${tokens.borderRadius.md}px`, bgcolor: tokens.colors.secondary[100], color: tokens.colors.secondary[700] }}>
                 <EventAvailableIcon />
               </Box>
-              <Chip
-                label="Available"
+              <Button
+                component={Link}
+                to="/attendance"
                 size="small"
-                sx={{ bgcolor: "#f1f5f9", fontWeight: 700, fontSize: "0.7rem" }}
-              />
+                variant="text"
+                sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.75rem", p: 0 }}
+              >
+                Manage Leaves →
+              </Button>
             </Box>
             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
               Leave Balance

@@ -179,6 +179,18 @@ export function EmployeeLayout({ children }: Props) {
       }
     }
 
+    // Ensure Dashboard is always the leading item for quick navigation
+    const hasDashboard = list.some((i) => i.path === "/dashboard" || i.key === "dashboard");
+    if (!hasDashboard) {
+      list.unshift({ key: "dashboard", label: "Dashboard", path: "/dashboard", icon: "DashboardOutlined", module: "Overview" });
+    }
+
+    // Always ensure Attendance & Leaves is accessible
+    const hasAttendance = list.some((i) => i.path === "/attendance" || i.key === "attendance");
+    if (!hasAttendance) {
+      list.push({ key: "attendance", label: "Attendance & Leaves", path: "/attendance", icon: "EventAvailableOutlined", module: "HR & Self-Service" });
+    }
+
     // Always append self-service utilities if not already present in navigation
     const hasWorkLogs = list.some((i) => i.path === "/work-logs");
     if (!hasWorkLogs && (can("WORKLOGS_VIEW") || can("WORKLOGS_SUBMIT"))) {
