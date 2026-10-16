@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -9,6 +9,9 @@ import Divider from "@mui/material/Divider";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
 
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import BusinessOutlinedIcon from "@mui/icons-material/BusinessOutlined";
@@ -23,11 +26,20 @@ import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import SearchIcon from "@mui/icons-material/Search";
+import StarsIcon from "@mui/icons-material/Stars";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 
 import { tokens } from "../theme/tokens";
 import { authService, type EmployeeProfile } from "../services/authService";
 import { useAuth } from "../auth/AuthProvider";
 import type { UserPermissionItem } from "../types/auth";
+import { MyPermissionsDrawer } from "../components/MyPermissionsDrawer";
+import {
+  getPermissionMetadata,
+  SCOPE_DESCRIPTIONS,
+} from "../utils/permissionMetadata";
 
 export function EmployeeProfilePage() {
   const { user } = useAuth();
@@ -36,6 +48,11 @@ export function EmployeeProfilePage() {
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSalary, setShowSalary] = useState(false);
+  const [permissionsDrawerOpen, setPermissionsDrawerOpen] = useState(false);
+
+  // Search and filter inside the profile page
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("ALL");
 
   useEffect(() => {
     async function loadProfile() {
@@ -58,6 +75,34 @@ export function EmployeeProfilePage() {
     loadProfile();
   }, []);
 
+  const enrichedPermissions = useMemo(() => {
+    return permissions.map((p) => ({
+      ...p,
+      meta: getPermissionMetadata(p.code),
+    }));
+  }, [permissions]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    enrichedPermissions.forEach((p) => set.add(p.meta.category));
+    return ["ALL", ...Array.from(set)];
+  }, [enrichedPermissions]);
+
+  const filteredPermissions = useMemo(() => {
+    return enrichedPermissions.filter((item) => {
+      const matchesSearch =
+        item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.meta.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.meta.module.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.meta.description.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "ALL" || item.meta.category === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [enrichedPermissions, searchTerm, selectedCategory]);
+
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
@@ -76,14 +121,30 @@ export function EmployeeProfilePage() {
     .join(", ") || "Address not provided";
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 900 }}>
-      <Box>
-        <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
-          My Verified Staff Identity & ID Card
-        </Typography>
-        <Typography variant="body2" sx={{ color: "#64748b" }}>
-          Verified employment profile, compensation breakdown, and assigned operational permissions
-        </Typography>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 3, maxWidth: 960 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
+            My Verified Staff Identity & ID Card
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#64748b" }}>
+            Verified employment profile, compensation breakdown, and assigned operational permissions
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<SecurityOutlinedIcon />}
+          onClick={() => setPermissionsDrawerOpen(true)}
+          sx={{
+            textTransform: "none",
+            fontWeight: 700,
+            borderRadius: `${tokens.borderRadius.md}px`,
+            borderColor: tokens.colors.primary[200],
+            color: tokens.colors.primary[700],
+          }}
+        >
+          View Full Permissions Guide ({permissions.length})
+        </Button>
       </Box>
 
       {/* Verified Employee ID Card */}
@@ -232,10 +293,10 @@ export function EmployeeProfilePage() {
         </CardContent>
       </Card>
 
-      {/* Granted Roles & Permissions Section */}
+      {/* Assigned Operational Permissions Interactive Section */}
       <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
         <CardContent sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2.5 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
               <SecurityOutlinedIcon sx={{ color: tokens.colors.primary[600] }} />
               <Box>
@@ -257,63 +318,180 @@ export function EmployeeProfilePage() {
 
           <Divider />
 
-          {permissions.length === 0 ? (
-            <Typography variant="body2" sx={{ color: "#94a3b8", py: 2, textAlign: "center" }}>
-              No custom permissions granted. You have standard workspace member access.
+          {/* Search & Category Filter Controls */}
+          <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, alignItems: { sm: "center" } }}>
+            <TextField
+              size="small"
+              placeholder="Search permissions by name, code or keyword..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "#94a3b8", fontSize: "1.1rem" }} />
+                  </InputAdornment>
+                ),
+                sx: { borderRadius: `${tokens.borderRadius.md}px` },
+              }}
+              sx={{ flexGrow: 1 }}
+            />
+            <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+              {categories.map((cat) => (
+                <Chip
+                  key={cat}
+                  label={cat === "ALL" ? `All (${enrichedPermissions.length})` : cat}
+                  size="small"
+                  onClick={() => setSelectedCategory(cat)}
+                  color={selectedCategory === cat ? "primary" : "default"}
+                  variant={selectedCategory === cat ? "filled" : "outlined"}
+                  sx={{
+                    fontWeight: 700,
+                    fontSize: "0.72rem",
+                    bgcolor: selectedCategory === cat ? tokens.colors.primary[600] : undefined,
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+
+          {filteredPermissions.length === 0 ? (
+            <Typography variant="body2" sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
+              No permissions found matching "{searchTerm}".
             </Typography>
           ) : (
             <Box
               sx={{
                 display: "grid",
                 gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
-                gap: 1.5,
+                gap: 2,
               }}
             >
-              {permissions.map((p) => (
-                <Box
-                  key={p.code}
-                  sx={{
-                    p: 1.5,
-                    border: "1px solid #e2e8f0",
-                    borderRadius: `${tokens.borderRadius.md}px`,
-                    bgcolor: "#fafafa",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <KeyOutlinedIcon sx={{ fontSize: "1rem", color: tokens.colors.primary[600] }} />
-                    <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.82rem" }}>
-                      {p.code}
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={p.scope}
-                    size="small"
+              {filteredPermissions.map((p) => {
+                const scopeInfo = SCOPE_DESCRIPTIONS[p.scope] || {
+                  label: p.scope,
+                  description: `Scope: ${p.scope}`,
+                  color: "#334155",
+                  bg: "#f1f5f9",
+                };
+
+                return (
+                  <Box
+                    key={p.code}
                     sx={{
-                      fontSize: "0.65rem",
-                      fontWeight: 800,
-                      bgcolor:
-                        p.scope === "ALL"
-                          ? "#fee2e2"
-                          : p.scope === "DEPARTMENT"
-                          ? "#fef3c7"
-                          : "#e0f2fe",
-                      color:
-                        p.scope === "ALL"
-                          ? "#991b1b"
-                          : p.scope === "DEPARTMENT"
-                          ? "#92400e"
-                          : "#075985",
+                      p: 2,
+                      border: "1px solid #e2e8f0",
+                      borderRadius: `${tokens.borderRadius.md}px`,
+                      bgcolor: "#ffffff",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: 1.25,
+                      transition: "all 0.15s ease",
+                      "&:hover": {
+                        borderColor: tokens.colors.primary[300],
+                        boxShadow: tokens.shadows.xs,
+                      },
                     }}
-                  />
+                  >
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <KeyOutlinedIcon sx={{ fontSize: "1rem", color: tokens.colors.primary[600] }} />
+                        <Typography variant="body2" fontWeight={800} sx={{ fontSize: "0.82rem", color: tokens.colors.secondary[900] }}>
+                          {p.meta.name}
+                        </Typography>
+                      </Box>
+                      <Tooltip title={scopeInfo.description} arrow>
+                        <Chip
+                          label={p.scope}
+                          size="small"
+                          sx={{
+                            fontSize: "0.65rem",
+                            fontWeight: 800,
+                            height: 20,
+                            bgcolor: scopeInfo.bg,
+                            color: scopeInfo.color,
+                            border: `1px solid ${scopeInfo.color}33`,
+                          }}
+                        />
+                      </Tooltip>
+                    </Box>
+
+                    <Typography variant="caption" sx={{ color: "#475569", lineHeight: 1.3, fontSize: "0.75rem" }}>
+                      {p.meta.description}
+                    </Typography>
+
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pt: 0.5, borderTop: "1px dashed #f1f5f9" }}>
+                      <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                        <Chip
+                          label={p.code}
+                          size="small"
+                          sx={{
+                            fontFamily: "monospace",
+                            fontSize: "0.65rem",
+                            fontWeight: 700,
+                            bgcolor: "#f1f5f9",
+                            color: "#475569",
+                            height: 18,
+                          }}
+                        />
+                        {p.meta.isApprovalAuthority && (
+                          <Chip
+                            label="Approver"
+                            size="small"
+                            icon={<StarsIcon sx={{ fontSize: "0.75rem !important" }} />}
+                            sx={{
+                              height: 18,
+                              fontSize: "0.62rem",
+                              fontWeight: 800,
+                              bgcolor: "#fef3c7",
+                              color: "#b45309",
+                            }}
+                          />
+                        )}
+                      </Box>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <CheckCircleOutlineIcon sx={{ color: "#16a34a", fontSize: "0.85rem" }} />
+                        <Typography variant="caption" sx={{ color: "#16a34a", fontWeight: 700, fontSize: "0.68rem" }}>
+                          Granted
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+
+          {/* Scope Legend Guide */}
+          <Box sx={{ mt: 1, p: 2, bgcolor: "#f8fafc", borderRadius: `${tokens.borderRadius.md}px`, border: "1px solid #e2e8f0" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <InfoOutlinedIcon sx={{ fontSize: "1rem", color: "#64748b" }} />
+              <Typography variant="caption" fontWeight={800} sx={{ color: "#475569", textTransform: "uppercase" }}>
+                Understanding Your Permission Scopes
+              </Typography>
+            </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" }, gap: 1.5 }}>
+              {Object.entries(SCOPE_DESCRIPTIONS).map(([key, info]) => (
+                <Box key={key} sx={{ p: 1, borderRadius: 1, bgcolor: info.bg, border: `1px solid ${info.color}33` }}>
+                  <Typography variant="caption" fontWeight={800} sx={{ color: info.color, display: "block" }}>
+                    {key}: {info.label}
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.68rem", lineHeight: 1.2 }}>
+                    {info.description}
+                  </Typography>
                 </Box>
               ))}
             </Box>
-          )}
+          </Box>
         </CardContent>
       </Card>
+
+      {/* Permissions Breakdown Drawer */}
+      <MyPermissionsDrawer
+        open={permissionsDrawerOpen}
+        onClose={() => setPermissionsDrawerOpen(false)}
+        employeeCode={profile?.employeeCode}
+      />
     </Box>
   );
 }

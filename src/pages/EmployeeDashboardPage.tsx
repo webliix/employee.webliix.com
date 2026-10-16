@@ -29,12 +29,17 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
+import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
+import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
+import Divider from "@mui/material/Divider";
 
 import { tokens } from "../theme/tokens";
 import { authService, type EmployeeProfile } from "../services/authService";
 import { projectApi, type Project } from "../services/projectApi";
 import { ticketApi, type Ticket } from "../services/ticketApi";
 import { workLogApi, type WorkLog } from "../services/workLogApi";
+import { MyPermissionsDrawer } from "../components/MyPermissionsDrawer";
+import { getPermissionMetadata, SCOPE_DESCRIPTIONS } from "../utils/permissionMetadata";
 import {
   employeeSelfApi,
   type AttendanceRecord,
@@ -46,10 +51,11 @@ import { usePermissions } from "../auth/usePermissions";
 import { Can } from "../components/Can";
 
 export function EmployeeDashboardPage() {
-  const { user } = useAuth();
+  const { user, permissions } = useAuth();
   const { can } = usePermissions();
 
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
+  const [permissionsDrawerOpen, setPermissionsDrawerOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [workLogs, setWorkLogs] = useState<WorkLog[]>([]);
@@ -525,6 +531,127 @@ export function EmployeeDashboardPage() {
         </Can>
       </Box>
 
+      {/* My Assigned Permissions & Portal Capabilities Card */}
+      <Card
+        sx={{
+          borderRadius: `${tokens.borderRadius.lg}px`,
+          boxShadow: tokens.shadows.sm,
+          border: `1px solid ${tokens.colors.secondary[200]}`,
+          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        }}
+      >
+        <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <Box
+                sx={{
+                  p: 1,
+                  borderRadius: `${tokens.borderRadius.md}px`,
+                  bgcolor: tokens.colors.primary[50],
+                  color: tokens.colors.primary[600],
+                  display: "flex",
+                }}
+              >
+                <SecurityOutlinedIcon />
+              </Box>
+              <Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
+                    My Assigned Permissions & Portal Capabilities
+                  </Typography>
+                  <Chip
+                    label={`${permissions.size} Active Grants`}
+                    size="small"
+                    color="primary"
+                    sx={{ fontWeight: 800, fontSize: "0.7rem", height: 22 }}
+                  />
+                </Box>
+                <Typography variant="caption" sx={{ color: "#64748b" }}>
+                  Verified permissions determining what features, operational records, and approval actions you can perform
+                </Typography>
+              </Box>
+            </Box>
+
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => setPermissionsDrawerOpen(true)}
+              startIcon={<KeyOutlinedIcon />}
+              sx={{
+                textTransform: "none",
+                fontWeight: 700,
+                borderRadius: `${tokens.borderRadius.md}px`,
+                borderColor: tokens.colors.primary[200],
+                color: tokens.colors.primary[700],
+                bgcolor: "#ffffff",
+                "&:hover": { bgcolor: tokens.colors.primary[50] },
+              }}
+            >
+              View Full Permissions Guide ({permissions.size})
+            </Button>
+          </Box>
+
+          <Divider />
+
+          {/* Quick Permission Capabilities Chips Grid */}
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
+              gap: 1.5,
+            }}
+          >
+            {Array.from(permissions.entries()).slice(0, 8).map(([code, scope]) => {
+              const meta = getPermissionMetadata(code);
+              const scopeInfo = SCOPE_DESCRIPTIONS[scope] || { label: scope, color: "#334155", bg: "#f1f5f9" };
+              return (
+                <Box
+                  key={code}
+                  onClick={() => setPermissionsDrawerOpen(true)}
+                  sx={{
+                    p: 1.5,
+                    bgcolor: "#ffffff",
+                    borderRadius: `${tokens.borderRadius.md}px`,
+                    border: "1px solid #e2e8f0",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: 1,
+                    transition: "all 0.15s ease",
+                    "&:hover": {
+                      borderColor: tokens.colors.primary[300],
+                      boxShadow: tokens.shadows.xs,
+                      transform: "translateY(-1px)",
+                    },
+                  }}
+                >
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 0.5 }}>
+                    <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.8rem", color: tokens.colors.secondary[900] }} noWrap>
+                      {meta.name}
+                    </Typography>
+                    <Chip
+                      label={scope}
+                      size="small"
+                      sx={{
+                        fontSize: "0.62rem",
+                        fontWeight: 800,
+                        height: 18,
+                        bgcolor: scopeInfo.bg,
+                        color: scopeInfo.color,
+                      }}
+                    />
+                  </Box>
+                  <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.72rem", lineHeight: 1.2 }} noWrap>
+                    {meta.description}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        </CardContent>
+      </Card>
+
       {/* Recent Leave Requests History */}
       <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
         <CardContent>
@@ -635,6 +762,13 @@ export function EmployeeDashboardPage() {
           </DialogActions>
         </form>
       </Dialog>
+
+      {/* Permissions Breakdown Drawer */}
+      <MyPermissionsDrawer
+        open={permissionsDrawerOpen}
+        onClose={() => setPermissionsDrawerOpen(false)}
+        employeeCode={profile?.employeeCode}
+      />
     </Box>
   );
 }

@@ -14,6 +14,7 @@ import Popover from "@mui/material/Popover";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
 import CircularProgress from "@mui/material/CircularProgress";
+import Tooltip from "@mui/material/Tooltip";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
@@ -21,12 +22,15 @@ import MenuIcon from "@mui/icons-material/Menu";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
+import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
 import { tokens } from "../theme/tokens";
 import { useAuth } from "../auth/AuthProvider";
 import { usePermissions } from "../auth/usePermissions";
 import { getMenuIcon } from "../utils/iconRegistry";
 import { notificationApi, type NotificationItem } from "../services/notificationApi";
 import { http } from "../services/http";
+import { MyPermissionsDrawer } from "../components/MyPermissionsDrawer";
 import type { NavigationItem } from "../types/auth";
 
 interface Props {
@@ -36,11 +40,12 @@ interface Props {
 export function EmployeeLayout({ children }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, navigation, logout } = useAuth();
+  const { user, permissions, navigation, logout } = useAuth();
   const { can } = usePermissions();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [permissionsDrawerOpen, setPermissionsDrawerOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Notifications State
@@ -385,6 +390,46 @@ export function EmployeeLayout({ children }: Props) {
           </Box>
 
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            {/* My Permissions Button */}
+            <Tooltip title="View all granted permissions, access scopes and authorities">
+              <Button
+                onClick={() => setPermissionsDrawerOpen(true)}
+                size="small"
+                variant="outlined"
+                startIcon={<SecurityOutlinedIcon sx={{ color: tokens.colors.primary[600], fontSize: "1.1rem" }} />}
+                sx={{
+                  display: { xs: "none", sm: "inline-flex" },
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "0.8rem",
+                  py: 0.5,
+                  px: 1.25,
+                  borderRadius: `${tokens.borderRadius.md}px`,
+                  borderColor: "#e2e8f0",
+                  color: tokens.colors.secondary[800],
+                  bgcolor: "#ffffff",
+                  "&:hover": {
+                    bgcolor: "rgba(37,99,235,0.04)",
+                    borderColor: tokens.colors.primary[300],
+                  },
+                }}
+              >
+                My Permissions ({permissions.size})
+              </Button>
+            </Tooltip>
+            <Tooltip title="My Permissions">
+              <IconButton
+                onClick={() => setPermissionsDrawerOpen(true)}
+                size="medium"
+                sx={{
+                  display: { xs: "inline-flex", sm: "none" },
+                  color: tokens.colors.primary[600],
+                }}
+              >
+                <SecurityOutlinedIcon />
+              </IconButton>
+            </Tooltip>
+
             {/* Notification Bell with Badge */}
             <IconButton
               onClick={handleOpenNotifications}
@@ -567,8 +612,21 @@ export function EmployeeLayout({ children }: Props) {
               </Avatar>
             </Button>
             <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-              <MenuItem onClick={() => { setAnchorEl(null); navigate("/profile"); }}>
-                <PersonOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Profile Settings
+              <MenuItem
+                onClick={() => {
+                  setAnchorEl(null);
+                  setPermissionsDrawerOpen(true);
+                }}
+              >
+                <KeyOutlinedIcon sx={{ mr: 1, fontSize: 20, color: tokens.colors.primary[600] }} /> My Permissions & Access
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setAnchorEl(null);
+                  navigate("/profile");
+                }}
+              >
+                <PersonOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Employee ID & Profile
               </MenuItem>
               <Divider />
               <MenuItem onClick={() => { setAnchorEl(null); logout(); }} sx={{ color: "error.main" }}>
@@ -583,6 +641,12 @@ export function EmployeeLayout({ children }: Props) {
           {children}
         </Box>
       </Box>
+
+      {/* Permissions Slide-out Drawer */}
+      <MyPermissionsDrawer
+        open={permissionsDrawerOpen}
+        onClose={() => setPermissionsDrawerOpen(false)}
+      />
     </Box>
   );
 }
