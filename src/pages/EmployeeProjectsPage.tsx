@@ -823,7 +823,7 @@ export function EmployeeProjectsPage() {
                         </Typography>
                       </Box>
                       <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
-                        {comment.comment}
+                        {comment.comment || comment.message || ""}
                       </Typography>
                     </Box>
                   ))}

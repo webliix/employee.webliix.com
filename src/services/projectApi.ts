@@ -39,6 +39,7 @@ export interface ProjectComment {
   projectId: number;
   authorName: string;
   comment: string;
+  message?: string;
   createdAt: string;
 }
 
@@ -133,12 +134,22 @@ export const projectApi = {
 
   async getProjectComments(projectId: number): Promise<ProjectComment[]> {
     const res = await http.get(`/api/v1/projects/${projectId}/comments`);
-    return res.data?.data || [];
+    const list = res.data?.data || [];
+    return list.map((c: any) => ({
+      ...c,
+      comment: c.comment || c.message || "",
+      message: c.message || c.comment || "",
+    }));
   },
 
   async addProjectComment(projectId: number, comment: string): Promise<ProjectComment> {
-    const res = await http.post(`/api/v1/projects/${projectId}/comments`, { message: comment });
-    return res.data?.data;
+    const res = await http.post(`/api/v1/projects/${projectId}/comments`, { message: comment, comment });
+    const c = res.data?.data || {};
+    return {
+      ...c,
+      comment: c.comment || c.message || comment,
+      message: c.message || c.comment || comment,
+    };
   },
 
   async updateProjectProgress(
