@@ -135,11 +135,14 @@ export const projectApi = {
   async getProjectComments(projectId: number): Promise<ProjectComment[]> {
     const res = await http.get(`/api/v1/projects/${projectId}/comments`);
     const list = res.data?.data || [];
-    return list.map((c: any) => ({
-      ...c,
-      comment: c.comment || c.message || "",
-      message: c.message || c.comment || "",
-    }));
+    return list.map((c: any) => {
+      const msg = c.comment || c.message || c.text || c.content || c.note || "";
+      return {
+        ...c,
+        comment: msg,
+        message: msg,
+      };
+    });
   },
 
   async addProjectComment(projectId: number, comment: string): Promise<ProjectComment> {

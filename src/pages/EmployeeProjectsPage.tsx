@@ -822,8 +822,8 @@ export function EmployeeProjectsPage() {
                           })}
                         </Typography>
                       </Box>
-                      <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
-                        {comment.comment || comment.message || ""}
+                      <Typography variant="body2" sx={{ whiteSpace: "pre-line", color: "#1e293b", mt: 0.5 }}>
+                        {comment.comment || comment.message || (comment as any).text || (comment as any).content || (comment as any).note || "Project activity logged."}
                       </Typography>
                     </Box>
                   ))}

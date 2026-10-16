@@ -12,8 +12,14 @@ export interface EmployeeProfile {
   departmentName?: string;
   designationName?: string;
   joiningDate?: string;
+  salary?: number;
   employmentType?: string;
   active?: boolean;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  emergencyContact?: string;
   userId?: number;
 }
 
