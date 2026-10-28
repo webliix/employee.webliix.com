@@ -195,13 +195,11 @@ class EmployeeWebSocketService {
     }
   }
 
+  private reconnectAttempts = 0;
+  private readonly MAX_RECONNECT_ATTEMPTS = 1;
+
   private startHeartbeat() {
     this.clearHeartbeat();
-    this.heartbeatTimer = setInterval(() => {
-      if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-        this.socket.send("\n");
-      }
-    }, 10000);
   }
 
   private clearHeartbeat() {
@@ -212,13 +210,14 @@ class EmployeeWebSocketService {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
+    if (this.reconnectTimer || this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (!this.isConnectedFlag) {
+      if (!this.isConnectedFlag && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+        this.reconnectAttempts++;
         this.connect();
       }
-    }, 5000);
+    }, 15000);
   }
 }
 

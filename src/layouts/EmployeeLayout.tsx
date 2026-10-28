@@ -109,15 +109,10 @@ export function EmployeeLayout({ children }: Props) {
     }
   };
 
+  // Load unread and pending counts once on mount without background polling loops
   useEffect(() => {
     loadUnreadCount();
     loadPendingCounts();
-    const timer = setInterval(() => {
-      if (document.hidden) return;
-      loadUnreadCount();
-      loadPendingCounts();
-    }, 60000);
-    return () => clearInterval(timer);
   }, []);
 
   // Live WebSocket Real-time Notifications & Ticket Alerts
