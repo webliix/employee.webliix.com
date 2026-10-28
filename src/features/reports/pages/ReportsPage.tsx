@@ -169,8 +169,8 @@ export function ReportsPage() {
                 monthly.map((m, idx) => (
                   <TableRow key={idx} hover>
                     <TableCell sx={{ fontWeight: 600 }}>{m.month || m.period || `Month ${idx + 1}`}</TableCell>
-                    <TableCell>${Number(m.invoiced || 0).toLocaleString()}</TableCell>
-                    <TableCell sx={{ fontWeight: 800, color: "#16a34a" }}>${Number(m.collected || m.revenue || 0).toLocaleString()}</TableCell>
+                    <TableCell>₹{Number(m.invoiced || 0).toLocaleString()}</TableCell>
+                    <TableCell sx={{ fontWeight: 800, color: "#16a34a" }}>₹{Number(m.collected || m.revenue || 0).toLocaleString()}</TableCell>
                     <TableCell>
                       <Typography variant="caption" sx={{ fontWeight: 700, color: "#64748b" }}>
                         Audited

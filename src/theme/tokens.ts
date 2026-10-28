@@ -43,11 +43,12 @@ export const tokens = {
     },
   },
   borderRadius: {
-    xs: 4,
-    sm: 6,
-    md: 8,
-    lg: 12,
-    xl: 16,
+    xs: 2,
+    sm: 3,
+    md: 3,
+    lg: 3,
+    xl: 3,
+    full: 3,
   },
   shadows: {
     xs: "0 1px 1px 0 rgba(0, 0, 0, 0.03)",

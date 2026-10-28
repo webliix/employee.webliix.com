@@ -118,10 +118,10 @@ export function PayrollPage() {
                       {p.employeeName || p.employeeCode || `EMP-${p.employeeId}`}
                     </TableCell>
                     <TableCell>{p.month ? `${p.month} ${p.year || ""}` : "-"}</TableCell>
-                    <TableCell>${Number(p.basicSalary || 0).toLocaleString()}</TableCell>
-                    <TableCell sx={{ color: "#16a34a" }}>+${Number(p.allowances || 0).toLocaleString()}</TableCell>
-                    <TableCell sx={{ color: "#dc2626" }}>-${Number(p.deductions || 0).toLocaleString()}</TableCell>
-                    <TableCell sx={{ fontWeight: 800 }}>${Number(p.netSalary || 0).toLocaleString()}</TableCell>
+                    <TableCell>₹{Number(p.basicSalary || 0).toLocaleString()}</TableCell>
+                    <TableCell sx={{ color: "#16a34a" }}>+₹{Number(p.allowances || 0).toLocaleString()}</TableCell>
+                    <TableCell sx={{ color: "#dc2626" }}>-₹{Number(p.deductions || 0).toLocaleString()}</TableCell>
+                    <TableCell sx={{ fontWeight: 800 }}>₹{Number(p.netSalary || 0).toLocaleString()}</TableCell>
                     <TableCell>
                       <Chip label={p.status || "PAID"} size="small" color={p.status === "PAID" ? "success" : "default"} sx={{ fontWeight: 700 }} />
                     </TableCell>

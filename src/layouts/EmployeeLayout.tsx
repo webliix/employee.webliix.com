@@ -384,14 +384,14 @@ export function EmployeeLayout({ children }: Props) {
                       justifyContent: "flex-start",
                       px: 2,
                       py: 1.25,
-                      borderRadius: "16px",
+                      borderRadius: "3px",
                       color: active ? "#ffffff" : "#64748b",
                       bgcolor: active ? "#582be8" : "transparent",
                       fontWeight: active ? 800 : 600,
                       fontSize: "0.88rem",
                       textTransform: "none",
-                      boxShadow: active ? "0 8px 20px -4px rgba(88, 43, 232, 0.4)" : "none",
-                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      boxShadow: active ? "0 4px 12px -2px rgba(88, 43, 232, 0.35)" : "none",
+                      transition: "all 0.15s ease",
                       "&:hover": {
                         bgcolor: active ? "#4c24cc" : "#f8fafc",
                         color: active ? "#ffffff" : "#582be8",
@@ -429,7 +429,7 @@ export function EmployeeLayout({ children }: Props) {
             justifyContent: "flex-start",
             px: 2,
             py: 1.2,
-            borderRadius: "16px",
+            borderRadius: "3px",
             color: location.pathname === "/profile" ? "#582be8" : "#64748b",
             bgcolor: location.pathname === "/profile" ? "#f5f3ff" : "transparent",
             fontWeight: 600,
@@ -450,7 +450,7 @@ export function EmployeeLayout({ children }: Props) {
             justifyContent: "flex-start",
             px: 2,
             py: 1.2,
-            borderRadius: "16px",
+            borderRadius: "3px",
             color: "#64748b",
             fontWeight: 600,
             fontSize: "0.88rem",
@@ -470,7 +470,7 @@ export function EmployeeLayout({ children }: Props) {
             justifyContent: "flex-start",
             px: 2,
             py: 1.2,
-            borderRadius: "16px",
+            borderRadius: "3px",
             color: location.pathname === "/tickets" ? "#582be8" : "#64748b",
             bgcolor: location.pathname === "/tickets" ? "#f5f3ff" : "transparent",
             fontWeight: 600,
@@ -493,7 +493,7 @@ export function EmployeeLayout({ children }: Props) {
             justifyContent: "flex-start",
             px: 2,
             py: 1.2,
-            borderRadius: "16px",
+            borderRadius: "3px",
             color: "#ef4444",
             fontWeight: 700,
             fontSize: "0.88rem",
@@ -543,27 +543,37 @@ export function EmployeeLayout({ children }: Props) {
           }}
         >
           {/* Left Title & Mobile Menu Button */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            <IconButton onClick={() => setMobileOpen(true)} sx={{ display: { xs: "inline-flex", md: "none" } }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flex: 1 }}>
+            <IconButton onClick={() => setMobileOpen(true)} sx={{ display: { xs: "inline-flex", md: "none" }, p: 0.75, borderRadius: "3px" }}>
               <MenuIcon />
             </IconButton>
-            <Typography variant="h5" fontWeight={900} letterSpacing="-0.02em" sx={{ color: "#0f172a" }}>
+            <Typography
+              variant="h5"
+              fontWeight={900}
+              letterSpacing="-0.02em"
+              noWrap
+              sx={{
+                color: "#0f172a",
+                fontSize: { xs: "1.1rem", sm: "1.35rem", md: "1.5rem" },
+              }}
+            >
               {pageTitle}
             </Typography>
           </Box>
 
           {/* Right Controls Matching Reference Image */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.75, sm: 1.5 }, flexShrink: 0 }}>
             {/* Search Button */}
             <Tooltip title="Search workspace">
               <IconButton
                 sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: "50%",
+                  width: 38,
+                  height: 38,
+                  borderRadius: "3px",
                   border: "1px solid #f1f5f9",
                   bgcolor: "#ffffff",
                   color: "#64748b",
+                  display: { xs: "none", sm: "inline-flex" },
                   "&:hover": { bgcolor: "#f8fafc", color: "#0f172a" },
                 }}
               >
@@ -576,9 +586,9 @@ export function EmployeeLayout({ children }: Props) {
               <IconButton
                 onClick={handleOpenNotifications}
                 sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: "50%",
+                  width: 38,
+                  height: 38,
+                  borderRadius: "3px",
                   border: "1px solid #f1f5f9",
                   bgcolor: "#ffffff",
                   color: "#64748b",
@@ -597,14 +607,14 @@ export function EmployeeLayout({ children }: Props) {
               to="/notifications"
               startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />}
               sx={{
-                display: { xs: "none", sm: "inline-flex" },
+                display: { xs: "none", md: "inline-flex" },
                 bgcolor: "#f5f3ff",
                 color: "#6d28d9",
                 border: "1px solid #ede9fe",
-                borderRadius: "9999px",
-                px: 2,
-                py: 1,
-                fontSize: "0.84rem",
+                borderRadius: "3px",
+                px: 1.8,
+                py: 0.85,
+                fontSize: "0.82rem",
                 fontWeight: 700,
                 textTransform: "none",
                 "&:hover": { bgcolor: "#ede9fe" },
@@ -613,41 +623,45 @@ export function EmployeeLayout({ children }: Props) {
               {unreadCount > 0 ? `${unreadCount} Important message` : "3 Important message"}
             </Button>
 
-            {/* "+ Add a request" Purple Pill Button */}
+            {/* "+ Add a request" Purple Button */}
             <Button
               onClick={() => setRequestModalOpen(true)}
               variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+              startIcon={<AddIcon sx={{ fontSize: 18, mr: { xs: -0.5, sm: 0.5 } }} />}
               sx={{
                 bgcolor: "#582be8",
                 color: "#ffffff",
-                borderRadius: "9999px",
-                px: 2.5,
-                py: 1,
-                fontSize: "0.84rem",
+                borderRadius: "3px",
+                px: { xs: 1.25, sm: 2.25 },
+                py: 0.85,
+                fontSize: "0.82rem",
                 fontWeight: 800,
                 textTransform: "none",
-                boxShadow: "0 6px 18px -2px rgba(88, 43, 232, 0.35)",
+                minWidth: { xs: 38, sm: "auto" },
+                boxShadow: "0 4px 12px -2px rgba(88, 43, 232, 0.35)",
                 "&:hover": { bgcolor: "#4c24cc" },
               }}
             >
-              Add a request
+              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                Add a request
+              </Box>
             </Button>
 
             {/* Profile Avatar & Menu */}
             <Button
               onClick={(e) => setAnchorEl(e.currentTarget)}
-              sx={{ textTransform: "none", color: "inherit", p: 0.5, minWidth: "auto" }}
+              sx={{ textTransform: "none", color: "inherit", p: 0.5, minWidth: "auto", borderRadius: "3px" }}
             >
               <Avatar
                 sx={{
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
+                  borderRadius: "3px",
                   bgcolor: "#582be8",
                   color: "#ffffff",
                   fontWeight: 800,
-                  fontSize: "0.9rem",
-                  boxShadow: "0 4px 10px rgba(88, 43, 232, 0.2)",
+                  fontSize: "0.88rem",
+                  boxShadow: "0 2px 6px rgba(88, 43, 232, 0.2)",
                 }}
               >
                 {user?.firstName ? user.firstName[0].toUpperCase() : "E"}
@@ -683,7 +697,7 @@ export function EmployeeLayout({ children }: Props) {
               width: 380,
               maxWidth: "92vw",
               maxHeight: 480,
-              borderRadius: "20px",
+              borderRadius: "3px",
               boxShadow: "0 20px 40px -10px rgba(0,0,0,0.12)",
               mt: 1.5,
               display: "flex",
@@ -792,7 +806,7 @@ export function EmployeeLayout({ children }: Props) {
         onClose={() => setRequestModalOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: "24px", p: 1 } }}
+        PaperProps={{ sx: { borderRadius: "3px", p: 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           Add a request
@@ -803,7 +817,7 @@ export function EmployeeLayout({ children }: Props) {
         <form onSubmit={handleQuickRequestSubmit}>
           <DialogContent>
             {requestSuccess && (
-              <Alert severity="success" sx={{ mb: 2.5, borderRadius: "14px" }}>
+              <Alert severity="success" sx={{ mb: 2.5, borderRadius: "3px" }}>
                 {requestSuccess}
               </Alert>
             )}
@@ -824,7 +838,7 @@ export function EmployeeLayout({ children }: Props) {
                   onClick={() => setRequestType(item.type as any)}
                   sx={{
                     fontWeight: 800,
-                    borderRadius: "9999px",
+                    borderRadius: "3px",
                     px: 1,
                     py: 2,
                     bgcolor: requestType === item.type ? "#582be8" : "#f1f5f9",
@@ -840,7 +854,7 @@ export function EmployeeLayout({ children }: Props) {
               value={requestTitle}
               onChange={(e) => setRequestTitle(e.target.value)}
               required
-              sx={{ mb: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+              sx={{ mb: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "3px" } }}
             />
 
             <TextField
@@ -851,11 +865,11 @@ export function EmployeeLayout({ children }: Props) {
               value={requestDesc}
               onChange={(e) => setRequestDesc(e.target.value)}
               required
-              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "3px" } }}
             />
           </DialogContent>
           <DialogActions sx={{ p: 2.5 }}>
-            <Button onClick={() => setRequestModalOpen(false)} sx={{ fontWeight: 700, textTransform: "none", color: "#64748b" }}>
+            <Button onClick={() => setRequestModalOpen(false)} sx={{ fontWeight: 700, textTransform: "none", color: "#64748b", borderRadius: "3px" }}>
               Cancel
             </Button>
             <Button
@@ -864,7 +878,7 @@ export function EmployeeLayout({ children }: Props) {
               disabled={submittingRequest}
               sx={{
                 bgcolor: "#582be8",
-                borderRadius: "9999px",
+                borderRadius: "3px",
                 px: 3,
                 fontWeight: 800,
                 textTransform: "none",
