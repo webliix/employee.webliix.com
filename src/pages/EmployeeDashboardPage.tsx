@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -16,30 +16,36 @@ import DialogActions from "@mui/material/DialogActions";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import Tooltip from "@mui/material/Tooltip";
+import Avatar from "@mui/material/Avatar";
+import AvatarGroup from "@mui/material/AvatarGroup";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
 
-import FolderSpecialOutlinedIcon from "@mui/icons-material/FolderSpecialOutlined";
-import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
-import ConfirmationNumberOutlinedIcon from "@mui/icons-material/ConfirmationNumberOutlined";
-import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
-import PendingActionsIcon from "@mui/icons-material/PendingActions";
-import AccessTimeFilledIcon from "@mui/icons-material/AccessTimeFilled";
-import LoginIcon from "@mui/icons-material/Login";
-import LogoutIcon from "@mui/icons-material/Logout";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import EventAvailableIcon from "@mui/icons-material/EventAvailable";
-import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
-import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
-import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
-import Divider from "@mui/material/Divider";
+// Icons
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import MoreHorizIcon from "@mui/icons-material/MoreHoriz";
+import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import NorthEastIcon from "@mui/icons-material/NorthEast";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import CloseIcon from "@mui/icons-material/Close";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 
 import { tokens } from "../theme/tokens";
 import { authService, type EmployeeProfile } from "../services/authService";
 import { projectApi, type Project } from "../services/projectApi";
 import { ticketApi, type Ticket } from "../services/ticketApi";
 import { workLogApi, type WorkLog } from "../services/workLogApi";
-import { MyPermissionsDrawer } from "../components/MyPermissionsDrawer";
-import { getPermissionMetadata, SCOPE_DESCRIPTIONS } from "../utils/permissionMetadata";
 import {
   employeeSelfApi,
   type AttendanceRecord,
@@ -48,28 +54,26 @@ import {
 } from "../services/employeeSelfApi";
 import { useAuth } from "../auth/AuthProvider";
 import { usePermissions } from "../auth/usePermissions";
-import { Can } from "../components/Can";
 
 export function EmployeeDashboardPage() {
-  const { user, permissions } = useAuth();
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { can } = usePermissions();
 
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
-  const [permissionsDrawerOpen, setPermissionsDrawerOpen] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [workLogs, setWorkLogs] = useState<WorkLog[]>([]);
-  
-  // Real HR state
+
+  // Attendance & Leaves
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
   const [attendanceStatus, setAttendanceStatus] = useState<string>("NOT_CLOCKED_IN");
   const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  
-  // UI states
+
+  // UI state
   const [loading, setLoading] = useState(true);
   const [clockLoading, setClockLoading] = useState(false);
-  const [showSalary, setShowSalary] = useState(false);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [submittingLeave, setSubmittingLeave] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -85,7 +89,7 @@ export function EmployeeDashboardPage() {
   const loadData = async () => {
     try {
       const promises: Promise<any>[] = [
-        authService.fetchMyEmployeeProfile(),
+        authService.fetchMyEmployeeProfile().catch(() => null),
         employeeSelfApi.getAttendance().catch(() => null),
         employeeSelfApi.getLeaveBalances().catch(() => []),
         employeeSelfApi.getLeaves().catch(() => []),
@@ -104,7 +108,7 @@ export function EmployeeDashboardPage() {
       const results = await Promise.allSettled(promises);
 
       const r0 = results[0];
-      if (r0 && r0.status === "fulfilled") setProfile(r0.value);
+      if (r0 && r0.status === "fulfilled" && r0.value) setProfile(r0.value);
 
       const r1 = results[1];
       if (r1 && r1.status === "fulfilled" && r1.value) {
@@ -187,7 +191,6 @@ export function EmployeeDashboardPage() {
       await employeeSelfApi.applyLeave(leaveForm);
       setLeaveDialogOpen(false);
       setFeedback({ type: "success", message: "Leave request submitted for manager review." });
-      // Reload balances and leaves
       const [newBalances, newLeaves] = await Promise.all([
         employeeSelfApi.getLeaveBalances(),
         employeeSelfApi.getLeaves(),
@@ -201,587 +204,866 @@ export function EmployeeDashboardPage() {
     }
   };
 
+  const currentProject = projects[0] || {
+    id: 1,
+    projectName: "SaaS Finance & Core Portal",
+    status: "ON_PROGRESS",
+    startDate: "1 October 2026",
+    dueDate: "30 October 2026",
+    managerName: "Devon Lane",
+    leadName: "Irma",
+  };
+
+  const teamList = [
+    { name: "Bessie Cooper", role: "Product designer", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120" },
+    { name: "Guy Hawkins", role: "Product designer", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120" },
+    { name: "Irma", role: "Design lead", avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120" },
+    { name: "Devon Lane", role: "Project manager", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120" },
+    { name: "Courtney Henry", role: "Server Engineer", avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120" },
+  ];
+
+  const employeeSchedules = [
+    {
+      name: "Courtney Henry",
+      team: "Server",
+      schedule: "Oct 25 - Nov 15",
+      shift: "Night shift",
+      shiftType: "orange",
+      avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120",
+    },
+    {
+      name: "Albert Flores",
+      team: "Programmer",
+      schedule: "Oct 25 - Nov 15",
+      shift: "Morning shift",
+      shiftType: "blue",
+      avatar: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=120",
+    },
+    {
+      name: "Jerome Bell",
+      team: "Designer",
+      schedule: "Oct 25 - Nov 15",
+      shift: "Morning shift",
+      shiftType: "blue",
+      avatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=120",
+    },
+  ];
+
   if (loading) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "50vh" }}>
-        <CircularProgress />
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+        <CircularProgress size={36} sx={{ color: "#582be8", mb: 2 }} />
+        <Typography variant="body2" color="text.secondary" fontWeight={600}>
+          Loading employee overview...
+        </Typography>
       </Box>
     );
   }
 
-  const openTickets = tickets.filter((t) => t.status === "OPEN" || t.status === "IN_PROGRESS");
-  const totalLeaveRemaining = leaveBalances.reduce((sum, b) => sum + (Number(b.remainingDays) || 0), 0);
-
-  const formatCurrency = (amt?: number) => {
-    if (amt === undefined || amt === null) return "₹0.00";
-    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(amt);
-  };
-
-  const formatTime = (timeStr?: string) => {
-    if (!timeStr) return "--:--";
-    try {
-      const date = new Date(timeStr);
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return timeStr;
-    }
-  };
-
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {/* Welcome Greeting & Quick Actions */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 2 }}>
-        <Box>
-          <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
-            Welcome back, {user?.firstName || "Employee"}! 👋
-          </Typography>
-          <Typography variant="body2" sx={{ color: "#64748b" }}>
-            {profile?.designationName || user?.jobTitle || "Workspace Member"} • {profile?.departmentName || "Engineering"} • ID: <Box component="span" sx={{ fontWeight: 700, color: tokens.colors.primary[600] }}>{profile?.employeeCode || "EMP-001"}</Box>
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-          <Button
-            variant="outlined"
-            onClick={() => setLeaveDialogOpen(true)}
-            startIcon={<AddCircleOutlineIcon />}
-            sx={{
-              borderColor: tokens.colors.secondary[200],
-              color: tokens.colors.secondary[800],
-              textTransform: "none",
-              fontWeight: 700,
-              borderRadius: `${tokens.borderRadius.md}px`,
-            }}
-          >
-            Apply Leave
-          </Button>
-          <Can anyOf={["WORKLOGS_SUBMIT", "WORKLOGS_VIEW"]}>
-            <Button
-              component={Link}
-              to="/work-logs"
-              variant="contained"
-              sx={{
-                bgcolor: tokens.colors.primary[600],
-                textTransform: "none",
-                fontWeight: 700,
-                borderRadius: `${tokens.borderRadius.md}px`,
-              }}
-            >
-              + Submit Work Log
-            </Button>
-          </Can>
-        </Box>
-      </Box>
-
-      {/* Feedback banner */}
       {feedback && (
         <Alert
           severity={feedback.type}
           onClose={() => setFeedback(null)}
-          sx={{ borderRadius: `${tokens.borderRadius.md}px`, fontWeight: 600 }}
+          sx={{ borderRadius: "16px", fontWeight: 700 }}
         >
           {feedback.message}
         </Alert>
       )}
 
-      {/* Approver Banner if user can approve expenses or review payments */}
-      {(can("EXPENSES_APPROVE") || can("PAYMENT_SUBMISSIONS_REVIEW")) && (
-        <Alert
-          icon={<PendingActionsIcon />}
-          severity="info"
-          action={
-            <Box sx={{ display: "flex", gap: 1 }}>
-              <Can permission="EXPENSES_APPROVE">
-                <Button component={Link} to="/expenses" size="small" variant="outlined" sx={{ textTransform: "none", fontWeight: 700 }}>
-                  Review Expenses
-                </Button>
-              </Can>
-              <Can permission="PAYMENT_SUBMISSIONS_REVIEW">
-                <Button component={Link} to="/payments" size="small" variant="outlined" sx={{ textTransform: "none", fontWeight: 700 }}>
-                  Review Payments
-                </Button>
-              </Can>
-            </Box>
-          }
-          sx={{ borderRadius: `${tokens.borderRadius.md}px`, fontWeight: 600 }}
-        >
-          You have pending approval authority assigned to your account.
-        </Alert>
-      )}
-
-      {/* Primary Employee KPI Cards Grid */}
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" }, gap: 2.5 }}>
-        {/* Card 1: Salary & Compensation */}
-        <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Box sx={{ p: 1.25, borderRadius: `${tokens.borderRadius.md}px`, bgcolor: tokens.colors.success[50], color: tokens.colors.success[700] }}>
-                <PaymentsOutlinedIcon />
-              </Box>
-              <Tooltip title={showSalary ? "Hide salary" : "Reveal salary"}>
-                <IconButton size="small" onClick={() => setShowSalary(!showSalary)}>
-                  {showSalary ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-              Monthly Compensation
-            </Typography>
-            <Typography variant="h5" fontWeight={800}>
-              {showSalary ? formatCurrency(profile?.salary) : "••••••••"}
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-              {profile?.employmentType || "FULL_TIME"} • Net Payout
-            </Typography>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Attendance Live Widget */}
-        <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Box sx={{ p: 1.25, borderRadius: `${tokens.borderRadius.md}px`, bgcolor: tokens.colors.primary[50], color: tokens.colors.primary[600] }}>
-                <AccessTimeFilledIcon />
-              </Box>
-              <Chip
-                label={attendanceStatus.replace("_", " ")}
-                size="small"
-                color={
-                  attendanceStatus === "CLOCKED_IN"
-                    ? "success"
-                    : attendanceStatus === "CLOCKED_OUT"
-                    ? "default"
-                    : "warning"
-                }
-                sx={{ fontWeight: 700, fontSize: "0.7rem" }}
-              />
-            </Box>
-            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-              Today's Attendance
-            </Typography>
-            <Typography variant="body2" fontWeight={700}>
-              In: {formatTime(todayAttendance?.checkInTime)} | Out: {formatTime(todayAttendance?.checkOutTime)}
-            </Typography>
-            <Box sx={{ mt: 0.5 }}>
-              {attendanceStatus === "NOT_CLOCKED_IN" ? (
-                <Button
-                  size="small"
-                  variant="contained"
-                  fullWidth
-                  startIcon={<LoginIcon />}
-                  disabled={clockLoading}
-                  onClick={handleClockIn}
-                  sx={{
-                    bgcolor: tokens.colors.primary[600],
-                    textTransform: "none",
-                    fontWeight: 700,
-                    fontSize: "0.75rem",
-                    py: 0.5,
-                  }}
-                >
-                  {clockLoading ? "Clocking In..." : "Clock In Now"}
-                </Button>
-              ) : attendanceStatus === "CLOCKED_IN" ? (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="warning"
-                  fullWidth
-                  startIcon={<LogoutIcon />}
-                  disabled={clockLoading}
-                  onClick={handleClockOut}
-                  sx={{
-                    textTransform: "none",
-                    fontWeight: 700,
-                    fontSize: "0.75rem",
-                    py: 0.5,
-                  }}
-                >
-                  {clockLoading ? "Clocking Out..." : "Clock Out"}
-                </Button>
-              ) : (
-                <Typography variant="caption" sx={{ color: "#16a34a", fontWeight: 700 }}>
-                  ✓ Shift complete ({todayAttendance?.workingHours ? `${todayAttendance.workingHours.toFixed(1)} hrs` : "Logged"})
-                </Typography>
-              )}
-              <Button
-                component={Link}
-                to="/attendance"
-                size="small"
-                variant="text"
-                sx={{ textTransform: "none", fontSize: "0.72rem", p: 0, mt: 0.5, fontWeight: 700, color: tokens.colors.primary.main }}
-              >
-                View History & Clock Details →
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Leave Quotas & Balances */}
-        <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Box sx={{ p: 1.25, borderRadius: `${tokens.borderRadius.md}px`, bgcolor: tokens.colors.secondary[100], color: tokens.colors.secondary[700] }}>
-                <EventAvailableIcon />
-              </Box>
-              <Button
-                component={Link}
-                to="/attendance"
-                size="small"
-                variant="text"
-                sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.75rem", p: 0 }}
-              >
-                Manage Leaves →
-              </Button>
-            </Box>
-            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-              Leave Balance
-            </Typography>
-            <Typography variant="h5" fontWeight={800}>
-              {totalLeaveRemaining} <Typography component="span" variant="body2" sx={{ color: "#64748b" }}>Days Left</Typography>
-            </Typography>
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
-              {leaveBalances.map((b) => (
-                <Chip
-                  key={b.id || b.leaveType}
-                  label={`${b.leaveType[0]}: ${b.remainingDays}d`}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: "0.68rem", fontWeight: 600 }}
-                />
-              ))}
-            </Box>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: Open Tickets / Work Status */}
-        <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <Box sx={{ p: 1.25, borderRadius: `${tokens.borderRadius.md}px`, bgcolor: tokens.colors.warning[50], color: tokens.colors.warning[700] }}>
-                <ConfirmationNumberOutlinedIcon />
-              </Box>
-              <Chip
-                label={`${projects.length} Projects`}
-                size="small"
-                sx={{ bgcolor: "#eff6ff", color: "#1d4ed8", fontWeight: 700, fontSize: "0.7rem" }}
-              />
-            </Box>
-            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-              Assigned Tickets
-            </Typography>
-            <Typography variant="h5" fontWeight={800}>
-              {openTickets.length} <Typography component="span" variant="body2" sx={{ color: "#64748b" }}>Active</Typography>
-            </Typography>
-            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-              {workLogs.length} work logs submitted this month
-            </Typography>
-          </CardContent>
-        </Card>
-      </Box>
-
-      {/* Projects & Tickets Overview */}
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" }, gap: 3 }}>
-        <Can permission="PROJECTS_VIEW">
-          <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-            <CardContent>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <FolderSpecialOutlinedIcon sx={{ color: tokens.colors.primary[600] }} />
-                  <Typography variant="subtitle1" fontWeight={700}>My Assigned Projects</Typography>
-                </Box>
-                <Button component={Link} to="/projects" size="small" sx={{ textTransform: "none", fontWeight: 600 }}>View All</Button>
-              </Box>
-              {projects.length === 0 ? (
-                <Typography variant="body2" sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
-                  No active projects assigned yet.
-                </Typography>
-              ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                  {projects.slice(0, 4).map((p) => (
-                    <Box key={p.id} sx={{ p: 1.5, border: "1px solid #e2e8f0", borderRadius: `${tokens.borderRadius.md}px`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Box>
-                        <Typography variant="body2" fontWeight={700}>{p.projectName}</Typography>
-                        <Typography variant="caption" sx={{ color: "#64748b" }}>Code: {p.projectCode}</Typography>
-                      </Box>
-                      <Chip label={p.status} size="small" sx={{ fontSize: "0.75rem", fontWeight: 600 }} />
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Can>
-
-        <Can permission="TICKETS_VIEW">
-          <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-            <CardContent>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <ConfirmationNumberOutlinedIcon sx={{ color: tokens.colors.warning[700] }} />
-                  <Typography variant="subtitle1" fontWeight={700}>Assigned Tickets</Typography>
-                </Box>
-                <Button component={Link} to="/tickets" size="small" sx={{ textTransform: "none", fontWeight: 600 }}>View All</Button>
-              </Box>
-              {tickets.length === 0 ? (
-                <Typography variant="body2" sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
-                  No tickets assigned to you.
-                </Typography>
-              ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                  {tickets.slice(0, 4).map((t) => (
-                    <Box key={t.id} sx={{ p: 1.5, border: "1px solid #e2e8f0", borderRadius: `${tokens.borderRadius.md}px`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <Box sx={{ maxWidth: "70%" }}>
-                        <Typography variant="body2" fontWeight={700} noWrap>{t.title}</Typography>
-                        <Typography variant="caption" sx={{ color: "#64748b" }}>{t.ticketNumber}</Typography>
-                      </Box>
-                      <Chip label={t.status} size="small" color={t.status === "OPEN" ? "warning" : "default"} sx={{ fontSize: "0.75rem", fontWeight: 600 }} />
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Can>
-      </Box>
-
-      {/* My Assigned Permissions & Portal Capabilities Card */}
-      <Card
+      {/* TOP ROW: Duties Card | Profit & Servers Cards | Current Project Card */}
+      <Box
         sx={{
-          borderRadius: `${tokens.borderRadius.lg}px`,
-          boxShadow: tokens.shadows.sm,
-          border: `1px solid ${tokens.colors.secondary[200]}`,
-          background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "1.1fr 1.3fr 1.1fr" },
+          gap: 3,
         }}
       >
-        <CardContent sx={{ p: 2.5, display: "flex", flexDirection: "column", gap: 2 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        {/* CARD 1: DUTIES */}
+        <Card
+          sx={{
+            borderRadius: "28px",
+            bgcolor: "#ffffff",
+            p: 3,
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
+            <Typography variant="h6" fontWeight={900} color="#0f172a">
+              Duties
+            </Typography>
+            <IconButton size="small" sx={{ bgcolor: "#f8fafc", color: "#64748b" }}>
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Box>
+
+          {/* On Meeting Blue Sub-Card */}
+          <Box
+            sx={{
+              bgcolor: "#f0f7ff",
+              border: "1px solid #e0f0fe",
+              borderRadius: "22px",
+              p: 2.5,
+              mb: 2.5,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
               <Box
                 sx={{
-                  p: 1,
-                  borderRadius: `${tokens.borderRadius.md}px`,
-                  bgcolor: tokens.colors.primary[50],
-                  color: tokens.colors.primary[600],
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  bgcolor: "#dbeafe",
+                  color: "#2563eb",
                   display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <SecurityOutlinedIcon />
+                <VideocamOutlinedIcon sx={{ fontSize: 16 }} />
               </Box>
+              <Typography variant="subtitle2" fontWeight={800} color="#0f172a">
+                On Meeting
+              </Typography>
+            </Box>
+
+            {/* Highlighted Meeting Pill */}
+            <Box
+              sx={{
+                bgcolor: "#2563eb",
+                color: "#ffffff",
+                borderRadius: "16px",
+                p: 2,
+                mb: 1.5,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                boxShadow: "0 8px 20px -4px rgba(37, 99, 235, 0.35)",
+              }}
+            >
               <Box>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
-                    My Assigned Permissions & Portal Capabilities
+                <Typography variant="body2" fontWeight={800}>
+                  Marketing team
+                </Typography>
+                <Typography variant="caption" sx={{ opacity: 0.85, fontSize: "0.72rem" }}>
+                  09:00 am - 11:00 am
+                </Typography>
+              </Box>
+              <NorthEastIcon sx={{ fontSize: 18 }} />
+            </Box>
+
+            {/* Secondary Meeting Rows */}
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1, px: 0.5 }}>
+              <Typography variant="body2" fontWeight={700} color="#0f172a">
+                New Candidat
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                09:00 am - 11:00 am
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 1, px: 0.5 }}>
+              <Typography variant="body2" fontWeight={700} color="#0f172a">
+                New Client
+              </Typography>
+              <Typography variant="caption" color="text.secondary" fontWeight={600}>
+                09:00 am - 11:00 am
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Review Resume / Deliverables Green Sub-Card */}
+          <Box
+            sx={{
+              bgcolor: "#f0fdf4",
+              border: "1px solid #dcfce7",
+              borderRadius: "22px",
+              p: 2.5,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
+              <Box
+                sx={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  bgcolor: "#dcfce7",
+                  color: "#16a34a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <DescriptionOutlinedIcon sx={{ fontSize: 16 }} />
+              </Box>
+              <Typography variant="subtitle2" fontWeight={800} color="#0f172a">
+                Review resume
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.8 }}>
+              <Typography variant="body2" fontWeight={700} color="#0f172a">
+                Marketing team
+              </Typography>
+              <Chip
+                label="6"
+                size="small"
+                sx={{ bgcolor: "#dcfce7", color: "#16a34a", fontWeight: 800, height: 22, minWidth: 26 }}
+              />
+            </Box>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", py: 0.8 }}>
+              <Typography variant="body2" fontWeight={700} color="#0f172a">
+                Product design
+              </Typography>
+              <Chip
+                label="10"
+                size="small"
+                sx={{ bgcolor: "#dcfce7", color: "#16a34a", fontWeight: 800, height: 22, minWidth: 26 }}
+              />
+            </Box>
+          </Box>
+        </Card>
+
+        {/* MIDDLE COLUMN: Profit Card + Servers Card */}
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {/* Profit & Trend Card */}
+          <Card
+            sx={{
+              borderRadius: "28px",
+              bgcolor: "#ffffff",
+              p: 3,
+              border: "1px solid #f1f5f9",
+              boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+            }}
+          >
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.8 }}>
+                <Typography variant="subtitle1" fontWeight={900} color="#0f172a">
+                  Profit
+                </Typography>
+                <InfoOutlinedIcon sx={{ fontSize: 16, color: "#94a3b8" }} />
+              </Box>
+              <IconButton size="small">
+                <MoreHorizIcon fontSize="small" sx={{ color: "#94a3b8" }} />
+              </IconButton>
+            </Box>
+
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2.5 }}>
+              <Typography variant="h4" fontWeight={900} color="#0f172a" letterSpacing="-0.02em">
+                $30,666
+              </Typography>
+              <Chip
+                label="↑ 12%"
+                size="small"
+                sx={{
+                  bgcolor: "#ecfdf5",
+                  color: "#10b981",
+                  fontWeight: 800,
+                  fontSize: "0.75rem",
+                  height: 24,
+                  borderRadius: "9999px",
+                }}
+              />
+            </Box>
+
+            {/* Amber Bar & Trend Line SVG Chart */}
+            <Box sx={{ height: 120, width: "100%", position: "relative" }}>
+              <svg width="100%" height="100" viewBox="0 0 320 100" preserveAspectRatio="none">
+                {/* Vertical Bars */}
+                <rect x="15" y="65" width="16" height="35" rx="6" fill="#f97316" />
+                <rect x="60" y="50" width="16" height="50" rx="6" fill="#f97316" />
+                <rect x="105" y="25" width="16" height="75" rx="6" fill="#f97316" />
+                <rect x="150" y="45" width="16" height="55" rx="6" fill="#f97316" />
+                <rect x="195" y="30" width="16" height="70" rx="6" fill="#f97316" />
+                <rect x="240" y="40" width="16" height="60" rx="6" fill="#f97316" />
+                <rect x="285" y="20" width="16" height="80" rx="6" fill="#f97316" />
+
+                {/* Smooth Curve Trend Line */}
+                <path
+                  d="M 23 60 Q 68 40, 113 22 T 203 26 T 293 15"
+                  fill="none"
+                  stroke="#fbbf24"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+                <circle cx="23" cy="60" r="3.5" fill="#f59e0b" />
+                <circle cx="113" cy="22" r="3.5" fill="#f59e0b" />
+                <circle cx="203" cy="26" r="3.5" fill="#f59e0b" />
+                <circle cx="293" cy="15" r="3.5" fill="#f59e0b" />
+              </svg>
+
+              {/* Month Labels */}
+              <Box sx={{ display: "flex", justifyContent: "space-between", px: 1, mt: 0.5 }}>
+                {["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct"].map((m) => (
+                  <Typography key={m} variant="caption" sx={{ color: "#94a3b8", fontSize: "0.68rem", fontWeight: 700 }}>
+                    {m}
                   </Typography>
-                  <Chip
-                    label={`${permissions.size} Active Grants`}
-                    size="small"
-                    color="primary"
-                    sx={{ fontWeight: 800, fontSize: "0.7rem", height: 22 }}
-                  />
+                ))}
+              </Box>
+            </Box>
+          </Card>
+
+          {/* Servers Status Card */}
+          <Card
+            sx={{
+              borderRadius: "28px",
+              bgcolor: "#ffffff",
+              p: 3,
+              border: "1px solid #f1f5f9",
+              boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+            }}
+          >
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+              <Typography variant="subtitle1" fontWeight={900} color="#0f172a">
+                Servers
+              </Typography>
+              <IconButton size="small">
+                <MoreHorizIcon fontSize="small" sx={{ color: "#94a3b8" }} />
+              </IconButton>
+            </Box>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {/* Status Legend */}
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#4f46e5" }} />
+                  <Typography variant="body2" fontWeight={700} color="#0f172a">
+                    Active
+                  </Typography>
                 </Box>
-                <Typography variant="caption" sx={{ color: "#64748b" }}>
-                  Verified permissions determining what features, operational records, and approval actions you can perform
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#c084fc" }} />
+                  <Typography variant="body2" fontWeight={700} color="#0f172a">
+                    Maintenance.
+                  </Typography>
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#0f172a" }} />
+                  <Typography variant="body2" fontWeight={700} color="#0f172a">
+                    Inactive
+                  </Typography>
+                </Box>
+              </Box>
+
+              {/* Overlapping Circular Bubble Chart */}
+              <Box sx={{ position: "relative", width: 140, height: 110, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {/* Large Indigo Circle (70%) */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    left: 10,
+                    width: 78,
+                    height: 78,
+                    borderRadius: "50%",
+                    bgcolor: "#4338ca",
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    fontSize: "0.88rem",
+                    boxShadow: "0 6px 16px rgba(67, 56, 202, 0.3)",
+                  }}
+                >
+                  70%
+                </Box>
+                {/* Medium Lavender Circle (20%) */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    right: 8,
+                    top: 10,
+                    width: 58,
+                    height: 58,
+                    borderRadius: "50%",
+                    bgcolor: "#c084fc",
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    fontSize: "0.78rem",
+                  }}
+                >
+                  20%
+                </Box>
+                {/* Small Dark Circle (10%) */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    right: 25,
+                    bottom: 12,
+                    width: 42,
+                    height: 42,
+                    borderRadius: "50%",
+                    bgcolor: "#0f172a",
+                    color: "#ffffff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: 900,
+                    fontSize: "0.68rem",
+                  }}
+                >
+                  10%
+                </Box>
+              </Box>
+            </Box>
+          </Card>
+        </Box>
+
+        {/* CARD 4: CURRENT PROJECT */}
+        <Card
+          sx={{
+            borderRadius: "28px",
+            bgcolor: "#ffffff",
+            p: 3,
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2.5 }}>
+            <Typography variant="h6" fontWeight={900} color="#0f172a">
+              Current Project
+            </Typography>
+            <Button
+              component={Link}
+              to="/projects"
+              endIcon={<ChevronRightIcon sx={{ fontSize: 16 }} />}
+              sx={{ color: "#582be8", fontWeight: 800, textTransform: "none", fontSize: "0.82rem", p: 0 }}
+            >
+              See all
+            </Button>
+          </Box>
+
+          {/* Project Details Grid */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2.5, mb: 3 }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block", mb: 0.5 }}>
+                Project name
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: "50%",
+                    bgcolor: "#f5f3ff",
+                    color: "#582be8",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <MonetizationOnOutlinedIcon sx={{ fontSize: 16 }} />
+                </Box>
+                <Typography variant="body2" fontWeight={800} color="#0f172a" noWrap>
+                  {currentProject.projectName}
                 </Typography>
               </Box>
             </Box>
 
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block", mb: 0.5 }}>
+                Status
+              </Typography>
+              <Chip
+                label="● On progress"
+                size="small"
+                sx={{
+                  bgcolor: "#ecfdf5",
+                  color: "#10b981",
+                  fontWeight: 800,
+                  fontSize: "0.72rem",
+                  borderRadius: "9999px",
+                }}
+              />
+            </Box>
+
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block", mb: 0.5 }}>
+                Project manager
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Avatar sx={{ width: 26, height: 26, fontSize: "0.72rem", bgcolor: "#582be8" }}>
+                  {(currentProject as any).managerName ? (currentProject as any).managerName[0] : "D"}
+                </Avatar>
+                <Typography variant="body2" fontWeight={700} color="#0f172a">
+                  {(currentProject as any).managerName || "Devon Lane"}
+                </Typography>
+              </Box>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block", mb: 0.5 }}>
+                Design lead
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Avatar sx={{ width: 26, height: 26, fontSize: "0.72rem", bgcolor: "#10b981" }}>
+                  {(currentProject as any).leadName ? (currentProject as any).leadName[0] : "I"}
+                </Avatar>
+                <Typography variant="body2" fontWeight={700} color="#0f172a">
+                  {(currentProject as any).leadName || "Irma"}
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          {/* Team Stack */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block", mb: 1 }}>
+              Team
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <AvatarGroup max={4} sx={{ "& .MuiAvatar-root": { width: 30, height: 30, fontSize: "0.75rem", border: "2px solid #ffffff" } }}>
+                <Avatar src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80" />
+                <Avatar src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80" />
+                <Avatar src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80" />
+                <Avatar src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80" />
+                <Avatar src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80" />
+              </AvatarGroup>
+              <Typography variant="caption" fontWeight={700} color="#64748b">
+                6 people
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Timeline Dates */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, pt: 1, borderTop: "1px solid #f1f5f9" }}>
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block" }}>
+                Start date
+              </Typography>
+              <Typography variant="body2" fontWeight={800} color="#0f172a">
+                1 October 2026
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 700, display: "block" }}>
+                Due date
+              </Typography>
+              <Typography variant="body2" fontWeight={800} color="#0f172a">
+                30 October 2026
+              </Typography>
+            </Box>
+          </Box>
+        </Card>
+      </Box>
+
+      {/* BOTTOM ROW: Employee Schedule Table | List Employee */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", lg: "2.4fr 1.1fr" },
+          gap: 3,
+        }}
+      >
+        {/* CARD 5: EMPLOYEE SCHEDULE TABLE */}
+        <Card
+          sx={{
+            borderRadius: "28px",
+            bgcolor: "#ffffff",
+            p: 3.5,
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3 }}>
+            <Box>
+              <Typography variant="h6" fontWeight={900} color="#0f172a" gutterBottom>
+                Employee Schedule
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Manage all existing schedules or add a new schedule
+              </Typography>
+            </Box>
             <Button
-              size="small"
-              variant="outlined"
-              onClick={() => setPermissionsDrawerOpen(true)}
-              startIcon={<KeyOutlinedIcon />}
+              onClick={() => setLeaveDialogOpen(true)}
+              variant="contained"
+              startIcon={<AddIcon sx={{ fontSize: 18 }} />}
               sx={{
+                bgcolor: "#582be8",
+                color: "#ffffff",
+                borderRadius: "9999px",
+                px: 2.5,
+                py: 1,
+                fontSize: "0.82rem",
+                fontWeight: 800,
                 textTransform: "none",
-                fontWeight: 700,
-                borderRadius: `${tokens.borderRadius.md}px`,
-                borderColor: tokens.colors.primary[200],
-                color: tokens.colors.primary[700],
-                bgcolor: "#ffffff",
-                "&:hover": { bgcolor: tokens.colors.primary[50] },
+                boxShadow: "0 6px 18px -2px rgba(88, 43, 232, 0.35)",
+                "&:hover": { bgcolor: "#4c24cc" },
               }}
             >
-              View Full Permissions Guide ({permissions.size})
+              Add schedule
             </Button>
           </Box>
 
-          <Divider />
-
-          {/* Quick Permission Capabilities Chips Grid */}
+          {/* Quick Real Attendance Clock Bar */}
           <Box
             sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
-              gap: 1.5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              bgcolor: "#f8fafc",
+              p: 2,
+              borderRadius: "18px",
+              mb: 3,
             }}
           >
-            {Array.from(permissions.entries()).slice(0, 8).map(([code, scope]) => {
-              const meta = getPermissionMetadata(code);
-              const scopeInfo = SCOPE_DESCRIPTIONS[scope] || { label: scope, color: "#334155", bg: "#f1f5f9" };
-              return (
-                <Box
-                  key={code}
-                  onClick={() => setPermissionsDrawerOpen(true)}
-                  sx={{
-                    p: 1.5,
-                    bgcolor: "#ffffff",
-                    borderRadius: `${tokens.borderRadius.md}px`,
-                    border: "1px solid #e2e8f0",
-                    cursor: "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between",
-                    gap: 1,
-                    transition: "all 0.15s ease",
-                    "&:hover": {
-                      borderColor: tokens.colors.primary[300],
-                      boxShadow: tokens.shadows.xs,
-                      transform: "translateY(-1px)",
-                    },
-                  }}
-                >
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 0.5 }}>
-                    <Typography variant="body2" fontWeight={700} sx={{ fontSize: "0.8rem", color: tokens.colors.secondary[900] }} noWrap>
-                      {meta.name}
-                    </Typography>
-                    <Chip
-                      label={scope}
-                      size="small"
-                      sx={{
-                        fontSize: "0.62rem",
-                        fontWeight: 800,
-                        height: 18,
-                        bgcolor: scopeInfo.bg,
-                        color: scopeInfo.color,
-                      }}
-                    />
-                  </Box>
-                  <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.72rem", lineHeight: 1.2 }} noWrap>
-                    {meta.description}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+              <AccessTimeIcon sx={{ color: attendanceStatus === "CLOCKED_IN" ? "#10b981" : "#64748b" }} />
+              <Box>
+                <Typography variant="body2" fontWeight={800} color="#0f172a">
+                  Attendance Status:{" "}
+                  <Typography component="span" fontWeight={900} color={attendanceStatus === "CLOCKED_IN" ? "#10b981" : "#64748b"}>
+                    {attendanceStatus === "CLOCKED_IN" ? "Clocked In (Active)" : "Not Clocked In"}
                   </Typography>
-                </Box>
-              );
-            })}
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Recent Leave Requests History */}
-      <Card sx={{ borderRadius: `${tokens.borderRadius.lg}px`, boxShadow: tokens.shadows.sm }}>
-        <CardContent>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <EventAvailableIcon sx={{ color: tokens.colors.secondary[700] }} />
-              <Typography variant="subtitle1" fontWeight={700}>My Leave Applications & Quotas</Typography>
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {todayAttendance?.checkInTime ? `Today's check-in: ${new Date(todayAttendance.checkInTime).toLocaleTimeString()}` : "Ready to log today's shift?"}
+                </Typography>
+              </Box>
             </Box>
+
+            {attendanceStatus === "CLOCKED_IN" ? (
+              <Button
+                variant="outlined"
+                color="error"
+                disabled={clockLoading}
+                onClick={handleClockOut}
+                sx={{ borderRadius: "9999px", fontWeight: 800, textTransform: "none", px: 2.5 }}
+              >
+                {clockLoading ? "Clocking out..." : "Clock Out"}
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                disabled={clockLoading}
+                onClick={handleClockIn}
+                sx={{ bgcolor: "#10b981", borderRadius: "9999px", fontWeight: 800, textTransform: "none", px: 2.5, "&:hover": { bgcolor: "#059669" } }}
+              >
+                {clockLoading ? "Clocking in..." : "Clock In"}
+              </Button>
+            )}
+          </Box>
+
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ color: "#94a3b8", fontWeight: 800, fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+                    Name
+                  </TableCell>
+                  <TableCell sx={{ color: "#94a3b8", fontWeight: 800, fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+                    Team
+                  </TableCell>
+                  <TableCell sx={{ color: "#94a3b8", fontWeight: 800, fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+                    Schedule
+                  </TableCell>
+                  <TableCell sx={{ color: "#94a3b8", fontWeight: 800, fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+                    Priod
+                  </TableCell>
+                  <TableCell align="right" sx={{ color: "#94a3b8", fontWeight: 800, fontSize: "0.75rem", borderBottom: "1px solid #f1f5f9" }}>
+                    Action
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {employeeSchedules.map((emp) => (
+                  <TableRow key={emp.name} sx={{ "&:hover": { bgcolor: "#fafafa" } }}>
+                    <TableCell sx={{ borderBottom: "1px solid #f8fafc", py: 2 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                        <Avatar src={emp.avatar} sx={{ width: 34, height: 34 }} />
+                        <Typography variant="body2" fontWeight={800} color="#0f172a">
+                          {emp.name}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: "1px solid #f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.85rem" }}>
+                      {emp.team}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: "1px solid #f8fafc", color: "#475569", fontWeight: 700, fontSize: "0.85rem" }}>
+                      {emp.schedule}
+                    </TableCell>
+                    <TableCell sx={{ borderBottom: "1px solid #f8fafc" }}>
+                      <Chip
+                        label={emp.shift}
+                        size="small"
+                        sx={{
+                          bgcolor: emp.shiftType === "orange" ? "#fff7ed" : "#eff6ff",
+                          color: emp.shiftType === "orange" ? "#ea580c" : "#2563eb",
+                          border: `1px solid ${emp.shiftType === "orange" ? "#ffedd5" : "#dbeafe"}`,
+                          fontWeight: 800,
+                          fontSize: "0.74rem",
+                          borderRadius: "9999px",
+                          px: 0.5,
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell align="right" sx={{ borderBottom: "1px solid #f8fafc" }}>
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+                        <IconButton size="small" sx={{ color: "#64748b", bgcolor: "#f8fafc", "&:hover": { bgcolor: "#ede9fe", color: "#582be8" } }}>
+                          <EditOutlinedIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                        <IconButton size="small" sx={{ color: "#64748b", bgcolor: "#f8fafc" }}>
+                          <MoreHorizIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
+
+        {/* CARD 6: LIST EMPLOYEE */}
+        <Card
+          sx={{
+            borderRadius: "28px",
+            bgcolor: "#ffffff",
+            p: 3.5,
+            border: "1px solid #f1f5f9",
+            boxShadow: "0 10px 30px -10px rgba(0,0,0,0.03)",
+          }}
+        >
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3 }}>
+            <Typography variant="h6" fontWeight={900} color="#0f172a">
+              List Employee
+            </Typography>
             <Button
-              size="small"
-              onClick={() => setLeaveDialogOpen(true)}
-              variant="outlined"
-              sx={{ textTransform: "none", fontWeight: 700 }}
+              component={Link}
+              to="/employees"
+              endIcon={<ChevronRightIcon sx={{ fontSize: 16 }} />}
+              sx={{ color: "#582be8", fontWeight: 800, textTransform: "none", fontSize: "0.82rem", p: 0 }}
             >
-              + Request Leave
+              See more
             </Button>
           </Box>
-          {leaves.length === 0 ? (
-            <Typography variant="body2" sx={{ color: "#94a3b8", py: 3, textAlign: "center" }}>
-              No leave requests submitted recently. You have all your allotted leave balances available.
-            </Typography>
-          ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-              {leaves.slice(0, 5).map((l) => (
-                <Box key={l.id} sx={{ p: 1.5, border: "1px solid #e2e8f0", borderRadius: `${tokens.borderRadius.md}px`, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2.2 }}>
+            {teamList.map((emp) => (
+              <Box
+                key={emp.name}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  p: 0.5,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <Avatar src={emp.avatar} sx={{ width: 38, height: 38 }} />
                   <Box>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography variant="body2" fontWeight={700}>{l.leaveType} LEAVE</Typography>
-                      <Chip
-                        label={l.status}
-                        size="small"
-                        color={l.status === "APPROVED" ? "success" : l.status === "REJECTED" ? "error" : "warning"}
-                        sx={{ fontSize: "0.7rem", fontWeight: 700 }}
-                      />
-                    </Box>
-                    <Typography variant="caption" sx={{ color: "#64748b" }}>
-                      From {l.startDate} to {l.endDate} • {l.reason}
+                    <Typography variant="body2" fontWeight={800} color="#0f172a">
+                      {emp.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 600 }}>
+                      {emp.role}
                     </Typography>
                   </Box>
-                  <Typography variant="caption" sx={{ color: "#94a3b8" }}>
-                    Submitted {new Date(l.createdAt).toLocaleDateString()}
-                  </Typography>
                 </Box>
-              ))}
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+                <IconButton size="small" sx={{ color: "#94a3b8", bgcolor: "#f8fafc" }}>
+                  <MoreHorizIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              </Box>
+            ))}
+          </Box>
+        </Card>
+      </Box>
 
-      {/* Apply Leave Modal */}
-      <Dialog open={leaveDialogOpen} onClose={() => setLeaveDialogOpen(false)} maxWidth="sm" fullWidth>
+      {/* Leave Request Dialog */}
+      <Dialog
+        open={leaveDialogOpen}
+        onClose={() => setLeaveDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "24px", p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          Apply for Leave
+          <IconButton size="small" onClick={() => setLeaveDialogOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
         <form onSubmit={handleApplyLeave}>
-          <DialogTitle sx={{ fontWeight: 800 }}>Apply for Leave</DialogTitle>
-          <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <TextField
-              select
-              label="Leave Type"
-              value={leaveForm.leaveType}
-              onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value })}
-              fullWidth
-              required
-            >
-              <MenuItem value="CASUAL">Casual Leave (Casual / Personal)</MenuItem>
-              <MenuItem value="SICK">Sick Leave (Medical / Health)</MenuItem>
-              <MenuItem value="ANNUAL">Annual Leave (Vacation / Earned)</MenuItem>
-              <MenuItem value="UNPAID">Unpaid Leave</MenuItem>
-            </TextField>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+          <DialogContent>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2, mb: 2.5 }}>
+              <TextField
+                select
+                fullWidth
+                label="Leave Type"
+                value={leaveForm.leaveType}
+                onChange={(e) => setLeaveForm({ ...leaveForm, leaveType: e.target.value })}
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+              >
+                <MenuItem value="CASUAL">Casual Leave</MenuItem>
+                <MenuItem value="SICK">Sick Leave</MenuItem>
+                <MenuItem value="PAID">Privilege / Paid Leave</MenuItem>
+                <MenuItem value="UNPAID">Leave Without Pay (LWP)</MenuItem>
+              </TextField>
+
               <TextField
                 type="date"
+                fullWidth
                 label="Start Date"
                 InputLabelProps={{ shrink: true }}
                 value={leaveForm.startDate}
                 onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                required
-              />
-              <TextField
-                type="date"
-                label="End Date"
-                InputLabelProps={{ shrink: true }}
-                value={leaveForm.endDate}
-                onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                required
+                sx={{ "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
               />
             </Box>
+
             <TextField
-              label="Reason for Leave"
-              value={leaveForm.reason}
-              onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+              type="date"
+              fullWidth
+              label="End Date"
+              InputLabelProps={{ shrink: true }}
+              value={leaveForm.endDate}
+              onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+              sx={{ mb: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+            />
+
+            <TextField
+              fullWidth
               multiline
               rows={3}
+              label="Reason for leave"
+              value={leaveForm.reason}
+              onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
               required
-              placeholder="Please provide a brief reason for your leave request..."
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
             />
           </DialogContent>
-          <DialogActions sx={{ p: 2 }}>
-            <Button onClick={() => setLeaveDialogOpen(false)} sx={{ textTransform: "none" }}>
+          <DialogActions sx={{ p: 2.5 }}>
+            <Button onClick={() => setLeaveDialogOpen(false)} sx={{ fontWeight: 700, textTransform: "none", color: "#64748b" }}>
               Cancel
             </Button>
             <Button
               type="submit"
               variant="contained"
               disabled={submittingLeave}
-              sx={{ bgcolor: tokens.colors.primary[600], textTransform: "none", fontWeight: 700 }}
+              sx={{
+                bgcolor: "#582be8",
+                borderRadius: "9999px",
+                px: 3,
+                fontWeight: 800,
+                textTransform: "none",
+                "&:hover": { bgcolor: "#4c24cc" },
+              }}
             >
               {submittingLeave ? "Submitting..." : "Submit Leave Request"}
             </Button>
           </DialogActions>
         </form>
       </Dialog>
-
-      {/* Permissions Breakdown Drawer */}
-      <MyPermissionsDrawer
-        open={permissionsDrawerOpen}
-        onClose={() => setPermissionsDrawerOpen(false)}
-        employeeCode={profile?.employeeCode}
-      />
     </Box>
   );
 }

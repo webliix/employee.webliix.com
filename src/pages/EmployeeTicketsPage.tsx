@@ -10,6 +10,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import SendIcon from "@mui/icons-material/Send";
 import { tokens } from "../theme/tokens";
 import { ticketApi, type Ticket, type TicketComment } from "../services/ticketApi";
+import { employeeWebSocketService } from "../services/employeeWebSocketService";
 import { useAuth } from "../auth/AuthProvider";
 
 export function EmployeeTicketsPage() {
@@ -39,6 +40,26 @@ export function EmployeeTicketsPage() {
   useEffect(() => {
     fetchTickets();
   }, []);
+
+  // Real-time WebSocket sync for tickets and live chat comments
+  useEffect(() => {
+    const unsub = employeeWebSocketService.onTicketUpdate((data) => {
+      ticketApi.getMyTickets().then((fresh) => {
+        setTickets(fresh);
+      }).catch(() => {});
+
+      const activeId = selectedTicket?.id;
+      if (activeId && (data?.ticketId === activeId || data?.payload?.ticketId === activeId || data?.payload?.id === activeId)) {
+        ticketApi.getComments(activeId).then((comms) => {
+          setComments(comms);
+        }).catch(() => {});
+      }
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [selectedTicket?.id]);
 
   const selectTicket = async (t: Ticket) => {
     setSelectedTicket(t);
@@ -93,13 +114,22 @@ export function EmployeeTicketsPage() {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <Box>
-        <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
-          Assigned Support Tickets
-        </Typography>
-        <Typography variant="body2" sx={{ color: "#64748b" }}>
-          Resolve tickets and chat with customers
-        </Typography>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 1 }}>
+        <Box>
+          <Typography variant="h5" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
+            Assigned Support Tickets
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#64748b" }}>
+            Resolve tickets and chat with customers
+          </Typography>
+        </Box>
+        <Chip
+          label="Live WebSocket Sync Active"
+          color="success"
+          size="small"
+          variant="outlined"
+          sx={{ fontWeight: 700, borderRadius: 2 }}
+        />
       </Box>
 
       {tickets.length === 0 ? (

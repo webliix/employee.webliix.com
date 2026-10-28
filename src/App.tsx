@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import GlobalStyles from "@mui/material/GlobalStyles";
 import { AuthProvider } from "./auth/AuthProvider";
 import { EmployeeLayout } from "./layouts/EmployeeLayout";
 import { EmployeeLoginPage } from "./pages/EmployeeLoginPage";
@@ -27,6 +28,23 @@ function PageLoader() {
 export function App() {
   return (
     <AuthProvider>
+      <GlobalStyles
+        styles={{
+          "*": {
+            scrollbarWidth: "none !important",
+            msOverflowStyle: "none !important",
+          },
+          "*::-webkit-scrollbar": {
+            display: "none !important",
+            width: "0px !important",
+            height: "0px !important",
+          },
+          "html, body, #root": {
+            scrollbarWidth: "none !important",
+            msOverflowStyle: "none !important",
+          },
+        }}
+      />
       <BrowserRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>

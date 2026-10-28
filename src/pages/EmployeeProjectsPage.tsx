@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
@@ -39,6 +39,8 @@ import AddTaskIcon from "@mui/icons-material/AddTask";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SendIcon from "@mui/icons-material/Send";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 import { tokens } from "../theme/tokens";
 import {
@@ -51,6 +53,7 @@ import {
 } from "../services/projectApi";
 
 export function EmployeeProjectsPage() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const highlightedProjectId = searchParams.get("projectId") || searchParams.get("highlight");
 
@@ -275,14 +278,26 @@ export function EmployeeProjectsPage() {
             return (
               <Card
                 key={project.id}
+                onClick={(e) => {
+                  // Only navigate if not clicking directly on a button or interactive child
+                  const target = e.target as HTMLElement;
+                  if (!target.closest("button") && !target.closest("a")) {
+                    navigate(`/projects/${project.id}`);
+                  }
+                }}
                 sx={{
                   borderRadius: `${tokens.borderRadius.lg}px`,
                   boxShadow: tokens.shadows.sm,
                   display: "flex",
                   flexDirection: "column",
+                  cursor: "pointer",
                   border: isHighlighted ? `2px solid ${tokens.colors.primary[600]}` : "1px solid #e2e8f0",
-                  transition: "box-shadow 0.2s, border-color 0.2s",
-                  "&:hover": { boxShadow: tokens.shadows.md },
+                  transition: "all 0.2s ease-in-out",
+                  "&:hover": {
+                    boxShadow: tokens.shadows.md,
+                    borderColor: tokens.colors.primary[300],
+                    transform: "translateY(-2px)",
+                  },
                 }}
               >
                 <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -302,7 +317,15 @@ export function EmployeeProjectsPage() {
                     />
                   </Box>
 
-                  <Typography variant="h6" fontWeight={700} sx={{ mt: 0.5 }}>
+                  <Typography
+                    variant="h6"
+                    fontWeight={700}
+                    sx={{
+                      mt: 0.5,
+                      color: tokens.colors.secondary[900],
+                      "&:hover": { color: tokens.colors.primary[600] },
+                    }}
+                  >
                     {project.projectName}
                   </Typography>
 
@@ -348,34 +371,69 @@ export function EmployeeProjectsPage() {
                   )}
 
                   {/* Action Buttons */}
-                  <Button
-                    variant="contained"
-                    size="small"
-                    startIcon={<EditCalendarIcon />}
-                    onClick={() => handleOpenUpdateModal(project)}
-                    sx={{
-                      mt: 1.5,
-                      fontWeight: 700,
-                      borderRadius: `${tokens.borderRadius.sm}px`,
-                      bgcolor: tokens.colors.primary[600],
-                      textTransform: "none",
-                    }}
-                  >
-                    Update Progress & Tasks
-                  </Button>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mt: 1.5 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<DescriptionOutlinedIcon />}
+                      endIcon={<ArrowForwardIcon sx={{ fontSize: "1rem !important" }} />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/projects/${project.id}`);
+                      }}
+                      sx={{
+                        fontWeight: 700,
+                        borderRadius: `${tokens.borderRadius.sm}px`,
+                        bgcolor: tokens.colors.primary[600],
+                        textTransform: "none",
+                        justifyContent: "space-between",
+                        px: 1.75,
+                      }}
+                    >
+                      View Project, Phases & Tasks
+                    </Button>
 
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AccountBalanceWalletIcon />}
-                    onClick={() => {
-                      handleOpenUpdateModal(project);
-                      setActiveTab(4);
-                    }}
-                    sx={{ fontWeight: 700, borderRadius: `${tokens.borderRadius.sm}px`, textTransform: "none" }}
-                  >
-                    View Financials
-                  </Button>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<EditCalendarIcon sx={{ fontSize: "0.95rem !important" }} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenUpdateModal(project);
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          borderRadius: `${tokens.borderRadius.sm}px`,
+                          textTransform: "none",
+                          fontSize: "0.75rem",
+                          py: 0.5,
+                        }}
+                      >
+                        Quick Update
+                      </Button>
+
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AccountBalanceWalletIcon sx={{ fontSize: "0.95rem !important" }} />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenUpdateModal(project);
+                          setActiveTab(4);
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          borderRadius: `${tokens.borderRadius.sm}px`,
+                          textTransform: "none",
+                          fontSize: "0.75rem",
+                          py: 0.5,
+                        }}
+                      >
+                        Financials
+                      </Button>
+                    </Box>
+                  </Box>
                 </CardContent>
               </Card>
             );

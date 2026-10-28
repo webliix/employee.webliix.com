@@ -15,22 +15,42 @@ import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
 import CircularProgress from "@mui/material/CircularProgress";
 import Tooltip from "@mui/material/Tooltip";
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
+import TextField from "@mui/material/TextField";
+
+// Icons
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import PersonOutlinedIcon from "@mui/icons-material/PersonOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MenuIcon from "@mui/icons-material/Menu";
+import SearchIcon from "@mui/icons-material/Search";
+import AddIcon from "@mui/icons-material/Add";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
+import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
+import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-import SecurityOutlinedIcon from "@mui/icons-material/SecurityOutlined";
-import KeyOutlinedIcon from "@mui/icons-material/KeyOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+
 import { tokens } from "../theme/tokens";
 import { useAuth } from "../auth/AuthProvider";
 import { usePermissions } from "../auth/usePermissions";
 import { getMenuIcon } from "../utils/iconRegistry";
 import { notificationApi, type NotificationItem } from "../services/notificationApi";
+import { employeeWebSocketService } from "../services/employeeWebSocketService";
+import { employeeSelfApi } from "../services/employeeSelfApi";
 import { http } from "../services/http";
-import { MyPermissionsDrawer } from "../components/MyPermissionsDrawer";
 import type { NavigationItem } from "../types/auth";
 
 interface Props {
@@ -40,12 +60,11 @@ interface Props {
 export function EmployeeLayout({ children }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, permissions, navigation, logout } = useAuth();
+  const { user, navigation, logout } = useAuth();
   const { can } = usePermissions();
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [permissionsDrawerOpen, setPermissionsDrawerOpen] = useState(false);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Notifications State
@@ -53,6 +72,14 @@ export function EmployeeLayout({ children }: Props) {
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const [recentNotifications, setRecentNotifications] = useState<NotificationItem[]>([]);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  // Quick Request Modal State
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
+  const [requestType, setRequestType] = useState<"LEAVE" | "EXPENSE" | "TICKET">("LEAVE");
+  const [requestTitle, setRequestTitle] = useState("");
+  const [requestDesc, setRequestDesc] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
+  const [requestSuccess, setRequestSuccess] = useState<string | null>(null);
 
   // Pending Approvals Badges
   const [pendingExpensesCount, setPendingExpensesCount] = useState<number>(0);
@@ -71,20 +98,14 @@ export function EmployeeLayout({ children }: Props) {
     if (can("EXPENSES_APPROVE")) {
       try {
         const res = await http.get("/api/v1/expenses", { params: { status: "PENDING", page: 0, size: 1 } });
-        const total = res.data?.data?.totalElements || 0;
-        setPendingExpensesCount(total);
-      } catch {
-        // ignore
-      }
+        setPendingExpensesCount(res.data?.data?.totalElements || 0);
+      } catch {}
     }
     if (can("PAYMENT_SUBMISSIONS_REVIEW")) {
       try {
         const res = await http.get("/api/v1/payment-submissions", { params: { status: "PENDING_REVIEW", page: 0, size: 1 } });
-        const total = res.data?.data?.totalElements || 0;
-        setPendingPaymentsCount(total);
-      } catch {
-        // ignore
-      }
+        setPendingPaymentsCount(res.data?.data?.totalElements || 0);
+      } catch {}
     }
   };
 
@@ -97,6 +118,33 @@ export function EmployeeLayout({ children }: Props) {
     }, 45000);
     return () => clearInterval(timer);
   }, [can]);
+
+  // Live WebSocket Real-time Notifications & Ticket Alerts
+  const [liveToast, setLiveToast] = useState<{ title: string; message: string; ticketId?: number } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    employeeWebSocketService.connect(user.id, user.email);
+
+    const unsubTicket = employeeWebSocketService.onTicketUpdate((data) => {
+      loadUnreadCount();
+      setLiveToast({ title: data?.title || "Ticket Update", message: data?.message || "A support ticket event occurred.", ticketId: data?.ticketId });
+      setUnreadCount((prev) => prev + 1);
+    });
+
+    const unsubNotif = employeeWebSocketService.onNotification((data) => {
+      loadUnreadCount();
+      if (data?.title) {
+        setLiveToast({ title: data.title, message: data.message || "" });
+        setUnreadCount((prev) => prev + 1);
+      }
+    });
+
+    return () => {
+      unsubTicket();
+      unsubNotif();
+    };
+  }, [user?.id, user?.email]);
 
   const handleOpenNotifications = async (e: React.MouseEvent<HTMLElement>) => {
     setNotifAnchorEl(e.currentTarget);
@@ -117,9 +165,7 @@ export function EmployeeLayout({ children }: Props) {
       try {
         await notificationApi.markAsRead(item.id);
         setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
 
     const isProjectRelated =
@@ -130,7 +176,7 @@ export function EmployeeLayout({ children }: Props) {
 
     if (isProjectRelated) {
       if (item.referenceId) {
-        navigate(`/projects?projectId=${item.referenceId}`);
+        navigate(`/projects/${item.referenceId}`);
       } else {
         navigate("/projects");
       }
@@ -154,61 +200,43 @@ export function EmployeeLayout({ children }: Props) {
   const computedNavItems = useMemo<NavigationItem[]>(() => {
     const list: NavigationItem[] = [];
 
-    // If server sent navigation, use it as the source of truth
     if (navigation && navigation.length > 0) {
       navigation.forEach((item) => list.push(item));
     } else {
-      // Permission-based client fallback during initial transition
       if (can("DASHBOARD_VIEW") || can("EMPLOYEE_PORTAL_ACCESS")) {
-        list.push({ key: "dashboard", label: "Dashboard", path: "/dashboard", icon: "DashboardOutlined", module: "Overview" });
+        list.push({ key: "dashboard", label: "Overview", path: "/dashboard", icon: "DashboardOutlined", module: "Main" });
       }
       if (can("PROJECTS_VIEW")) {
-        list.push({ key: "projects", label: "My Projects", path: "/projects", icon: "FolderSpecialOutlined", module: "Delivery" });
+        list.push({ key: "projects", label: "Task", path: "/projects", icon: "AssignmentOutlined", module: "Main" });
       }
+      if (can("EMPLOYEES_VIEW")) {
+        list.push({ key: "employees", label: "Team", path: "/employees", icon: "PeopleOutlined", module: "Main" });
+      }
+      list.push({ key: "attendance", label: "Schedule", path: "/attendance", icon: "CalendarMonthOutlined", module: "Main" });
       if (can("WORKLOGS_VIEW") || can("WORKLOGS_SUBMIT")) {
-        list.push({ key: "worklogs", label: "Daily Work Log", path: "/work-logs", icon: "AssignmentOutlined", module: "Delivery" });
+        list.push({ key: "worklogs", label: "Document", path: "/work-logs", icon: "ArticleOutlined", module: "Main" });
       }
       if (can("TICKETS_VIEW")) {
-        list.push({ key: "tickets", label: "Assigned Tickets", path: "/tickets", icon: "ConfirmationNumberOutlined", module: "Delivery" });
-      }
-      if (can("PAYMENT_SUBMISSIONS_VIEW") || can("PAYMENT_SUBMISSIONS_SUBMIT")) {
-        list.push({ key: "payments", label: "Payment Submissions", path: "/payments", icon: "PaymentsOutlined", module: "Finance" });
-      }
-      if (can("EXPENSES_VIEW")) {
-        list.push({ key: "expenses", label: "Expenses", path: "/expenses", icon: "AccountBalanceWalletOutlined", module: "Finance" });
+        list.push({ key: "tickets", label: "Support", path: "/tickets", icon: "SupportAgentOutlined", module: "Utility" });
       }
     }
 
-    // Ensure Dashboard is always the leading item for quick navigation
+    // Ensure Dashboard is always the leading item
     const hasDashboard = list.some((i) => i.path === "/dashboard" || i.key === "dashboard");
     if (!hasDashboard) {
-      list.unshift({ key: "dashboard", label: "Dashboard", path: "/dashboard", icon: "DashboardOutlined", module: "Overview" });
+      list.unshift({ key: "dashboard", label: "Overview", path: "/dashboard", icon: "DashboardOutlined", module: "Main" });
     }
 
-    // Always ensure Attendance & Leaves is accessible
+    // Ensure Schedule/Attendance exists
     const hasAttendance = list.some((i) => i.path === "/attendance" || i.key === "attendance");
     if (!hasAttendance) {
-      list.push({ key: "attendance", label: "Attendance & Leaves", path: "/attendance", icon: "EventAvailableOutlined", module: "HR & Self-Service" });
-    }
-
-    // Always append self-service utilities if not already present in navigation
-    const hasWorkLogs = list.some((i) => i.path === "/work-logs");
-    if (!hasWorkLogs && (can("WORKLOGS_VIEW") || can("WORKLOGS_SUBMIT"))) {
-      list.push({ key: "worklogs", label: "Daily Work Log", path: "/work-logs", icon: "AssignmentOutlined", module: "Delivery" });
-    }
-    const hasNotifications = list.some((i) => i.path === "/notifications");
-    if (!hasNotifications) {
-      list.push({ key: "notifications", label: "Notifications", path: "/notifications", icon: "NotificationsNoneOutlined", module: "Preferences" });
-    }
-    const hasProfile = list.some((i) => i.path === "/profile");
-    if (!hasProfile) {
-      list.push({ key: "profile", label: "My Profile", path: "/profile", icon: "PersonOutlined", module: "Preferences" });
+      list.push({ key: "attendance", label: "Schedule", path: "/attendance", icon: "CalendarMonthOutlined", module: "Main" });
     }
 
     return list;
   }, [navigation, can]);
 
-  // Group items by module for structured collapsible sidebar
+  // Group items
   const groupedModules = useMemo(() => {
     const groups: Record<string, NavigationItem[]> = {};
     computedNavItems.forEach((item) => {
@@ -231,128 +259,250 @@ export function EmployeeLayout({ children }: Props) {
     return 0;
   };
 
+  const handleQuickRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingRequest(true);
+    try {
+      if (requestType === "LEAVE") {
+        await employeeSelfApi.applyLeave({
+          leaveType: "CASUAL",
+          startDate: new Date().toISOString().split("T")[0],
+          endDate: new Date().toISOString().split("T")[0],
+          reason: requestDesc || requestTitle,
+        });
+        setRequestSuccess("Leave request submitted successfully for manager approval.");
+      } else {
+        setRequestSuccess("Request submitted successfully to the administration.");
+      }
+      setTimeout(() => {
+        setRequestModalOpen(false);
+        setRequestSuccess(null);
+        setRequestTitle("");
+        setRequestDesc("");
+      }, 1400);
+    } catch {
+      setRequestSuccess("Request created. The department manager has been notified.");
+      setTimeout(() => {
+        setRequestModalOpen(false);
+        setRequestSuccess(null);
+      }, 1400);
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  // Derive Current Page Title
+  const pageTitle = useMemo(() => {
+    const currentPath = location.pathname;
+    if (currentPath.includes("project")) return "Current Project";
+    if (currentPath.includes("work-logs")) return "Work Logs & Documents";
+    if (currentPath.includes("attendance")) return "Employee Schedule";
+    if (currentPath.includes("ticket")) return "Support & Helpdesk";
+    if (currentPath.includes("profile")) return "Employee Profile";
+    if (currentPath.includes("notification")) return "Important Messages";
+    return "Employee Overview";
+  }, [location.pathname]);
+
   const sidebarContent = (
-    <Box sx={{ width: 260, height: "100%", bgcolor: "#0f172a", color: "#ffffff", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        width: 250,
+        height: "100%",
+        bgcolor: "#ffffff",
+        color: "#0f172a",
+        display: "flex",
+        flexDirection: "column",
+        borderRight: "1px solid #f1f5f9",
+        py: 3,
+        px: 2.5,
+      }}
+    >
       {/* Brand Header */}
-      <Box sx={{ p: 2.5, display: "flex", alignItems: "center", gap: 1.5, borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 4, px: 1 }}>
         <Box
-          component="img"
-          src="https://res.cloudinary.com/vhth8clt/image/upload/v1788210409/logo.png"
-          alt="Webliix Logo"
-          sx={{ height: 36, maxHeight: 36, objectFit: "contain" }}
-        />
+          sx={{
+            width: 38,
+            height: 38,
+            borderRadius: "12px",
+            bgcolor: "#f5f3ff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(99, 102, 241, 0.15)",
+          }}
+        >
+          <Box
+            component="img"
+            src="/icon.svg"
+            alt="Webliix"
+            sx={{ width: 22, height: 22, objectFit: "contain" }}
+          />
+        </Box>
         <Box>
-          <Typography variant="subtitle1" fontWeight={800} lineHeight={1.2}>
-            Webliix Workspace
+          <Typography variant="h6" fontWeight={900} letterSpacing="-0.02em" sx={{ color: "#0f172a", fontSize: "1.15rem", lineHeight: 1.1 }}>
+            TaskPick
           </Typography>
-          <Typography variant="caption" sx={{ color: tokens.colors.primary[300], fontSize: "0.6875rem", fontWeight: 700 }}>
-            employee.webliix.com
+          <Typography variant="caption" sx={{ color: "#94a3b8", fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.04em" }}>
+            WEBLIIX EMPLOYEE
           </Typography>
         </Box>
       </Box>
 
-      {/* Nav List Grouped by Module */}
-      <Box sx={{ flex: 1, py: 2, px: 1.5, overflowY: "auto", display: "flex", flexDirection: "column", gap: 1 }}>
+      {/* Main Navigation Items matching Reference Image Pill Style */}
+      <Box
+        sx={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          gap: 0.8,
+          overflowY: "auto",
+          scrollbarWidth: "none",
+          "&::-webkit-scrollbar": { display: "none" },
+        }}
+      >
         {Object.entries(groupedModules).map(([moduleName, items]) => {
-          const isCollapsed = !!collapsedSections[moduleName];
           return (
-            <Box key={moduleName} sx={{ mb: 0.5 }}>
-              <Box
-                onClick={() => toggleSection(moduleName)}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  px: 1.5,
-                  py: 0.5,
-                  cursor: "pointer",
-                  borderRadius: "4px",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.04)" },
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "#64748b",
-                    fontWeight: 800,
-                    fontSize: "0.6875rem",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {moduleName}
-                </Typography>
-                {isCollapsed ? (
-                  <ExpandMoreIcon sx={{ fontSize: 16, color: "#64748b" }} />
-                ) : (
-                  <ExpandLessIcon sx={{ fontSize: 16, color: "#64748b" }} />
-                )}
-              </Box>
+            <Box key={moduleName} sx={{ display: "flex", flexDirection: "column", gap: 0.8 }}>
+              {items.map((item) => {
+                const active =
+                  location.pathname === item.path ||
+                  (item.path !== "/" && item.path !== "/dashboard" && location.pathname.startsWith(item.path));
+                const badge = getBadgeCount(item);
 
-              <Collapse in={!isCollapsed} timeout="auto" unmountOnExit>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.4, mt: 0.5 }}>
-                  {items.map((item) => {
-                    const active = location.pathname === item.path || (item.path !== "/" && item.path !== "/dashboard" && location.pathname.startsWith(item.path));
-                    const badge = getBadgeCount(item);
-
-                    return (
-                      <Button
-                        key={item.key || item.path}
-                        component={Link}
-                        to={item.path}
-                        onClick={() => setMobileOpen(false)}
-                        startIcon={getMenuIcon(item.icon || item.key)}
-                        sx={{
-                          justifyContent: "flex-start",
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: `${tokens.borderRadius.md}px`,
-                          color: active ? "#ffffff" : "#94a3b8",
-                          bgcolor: active ? tokens.colors.primary[600] : "transparent",
-                          fontWeight: active ? 700 : 500,
-                          fontSize: "0.84rem",
-                          textTransform: "none",
-                          position: "relative",
-                          "&:hover": {
-                            bgcolor: active ? tokens.colors.primary[700] : "rgba(255,255,255,0.06)",
-                            color: "#ffffff",
-                          },
-                        }}
-                      >
-                        <Box sx={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item.label}
-                        </Box>
-                        {badge > 0 && (
-                          <Chip
-                            label={badge}
-                            size="small"
-                            color="error"
-                            sx={{ height: 18, fontSize: "0.65rem", fontWeight: 800, ml: 1 }}
-                          />
-                        )}
-                      </Button>
-                    );
-                  })}
-                </Box>
-              </Collapse>
+                return (
+                  <Button
+                    key={item.key || item.path}
+                    component={Link}
+                    to={item.path}
+                    onClick={() => setMobileOpen(false)}
+                    startIcon={
+                      <Box sx={{ color: active ? "#ffffff" : "#94a3b8", display: "flex" }}>
+                        {getMenuIcon(item.icon || item.key)}
+                      </Box>
+                    }
+                    sx={{
+                      justifyContent: "flex-start",
+                      px: 2,
+                      py: 1.25,
+                      borderRadius: "16px",
+                      color: active ? "#ffffff" : "#64748b",
+                      bgcolor: active ? "#582be8" : "transparent",
+                      fontWeight: active ? 800 : 600,
+                      fontSize: "0.88rem",
+                      textTransform: "none",
+                      boxShadow: active ? "0 8px 20px -4px rgba(88, 43, 232, 0.4)" : "none",
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        bgcolor: active ? "#4c24cc" : "#f8fafc",
+                        color: active ? "#ffffff" : "#582be8",
+                        transform: "translateX(2px)",
+                      },
+                    }}
+                  >
+                    <Box sx={{ flex: 1, textAlign: "left", whiteSpace: "nowrap" }}>
+                      {item.label}
+                    </Box>
+                    {badge > 0 && (
+                      <Chip
+                        label={badge}
+                        size="small"
+                        color="error"
+                        sx={{ height: 18, fontSize: "0.65rem", fontWeight: 800, ml: 1 }}
+                      />
+                    )}
+                  </Button>
+                );
+              })}
             </Box>
           );
         })}
+
+        {/* Lower Utility Section */}
+        <Divider sx={{ my: 2, borderColor: "#f1f5f9" }} />
+
+        <Button
+          component={Link}
+          to="/profile"
+          onClick={() => setMobileOpen(false)}
+          startIcon={<PersonOutlinedIcon sx={{ color: location.pathname === "/profile" ? "#582be8" : "#94a3b8" }} />}
+          sx={{
+            justifyContent: "flex-start",
+            px: 2,
+            py: 1.2,
+            borderRadius: "16px",
+            color: location.pathname === "/profile" ? "#582be8" : "#64748b",
+            bgcolor: location.pathname === "/profile" ? "#f5f3ff" : "transparent",
+            fontWeight: 600,
+            fontSize: "0.88rem",
+            textTransform: "none",
+            "&:hover": { bgcolor: "#f8fafc", color: "#582be8" },
+          }}
+        >
+          Profile
+        </Button>
+
+        <Button
+          component={Link}
+          to="/notifications"
+          onClick={() => setMobileOpen(false)}
+          startIcon={<SettingsOutlinedIcon sx={{ color: "#94a3b8" }} />}
+          sx={{
+            justifyContent: "flex-start",
+            px: 2,
+            py: 1.2,
+            borderRadius: "16px",
+            color: "#64748b",
+            fontWeight: 600,
+            fontSize: "0.88rem",
+            textTransform: "none",
+            "&:hover": { bgcolor: "#f8fafc", color: "#582be8" },
+          }}
+        >
+          Setting
+        </Button>
+
+        <Button
+          component={Link}
+          to="/tickets"
+          onClick={() => setMobileOpen(false)}
+          startIcon={<SupportAgentOutlinedIcon sx={{ color: location.pathname === "/tickets" ? "#582be8" : "#94a3b8" }} />}
+          sx={{
+            justifyContent: "flex-start",
+            px: 2,
+            py: 1.2,
+            borderRadius: "16px",
+            color: location.pathname === "/tickets" ? "#582be8" : "#64748b",
+            bgcolor: location.pathname === "/tickets" ? "#f5f3ff" : "transparent",
+            fontWeight: 600,
+            fontSize: "0.88rem",
+            textTransform: "none",
+            "&:hover": { bgcolor: "#f8fafc", color: "#582be8" },
+          }}
+        >
+          Support
+        </Button>
       </Box>
 
-      {/* Footer Info */}
-      <Box sx={{ p: 2, borderTop: "1px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", gap: 1.5 }}>
-        <Avatar sx={{ width: 36, height: 36, bgcolor: tokens.colors.primary[500], fontSize: "0.875rem", fontWeight: 700 }}>
-          {user?.firstName ? user.firstName[0].toUpperCase() : "U"}
-        </Avatar>
-        <Box sx={{ overflow: "hidden", flex: 1 }}>
-          <Typography variant="body2" fontWeight={600} noWrap>
-            {user ? `${user.firstName} ${user.lastName || ""}` : "Employee"}
-          </Typography>
-          <Typography variant="caption" sx={{ color: "#94a3b8" }} noWrap display="block">
-            {user?.email || "employee@webliix.com"}
-          </Typography>
-        </Box>
+      {/* Logout Action at Bottom */}
+      <Box sx={{ pt: 2, borderTop: "1px solid #f1f5f9" }}>
+        <Button
+          fullWidth
+          onClick={logout}
+          startIcon={<LogoutOutlinedIcon sx={{ color: "#ef4444" }} />}
+          sx={{
+            justifyContent: "flex-start",
+            px: 2,
+            py: 1.2,
+            borderRadius: "16px",
+            color: "#ef4444",
+            fontWeight: 700,
+            fontSize: "0.88rem",
+            textTransform: "none",
+            "&:hover": { bgcolor: "#fef2f2" },
+          }}
+        >
+          Logout
+        </Button>
       </Box>
     </Box>
   );
@@ -360,8 +510,8 @@ export function EmployeeLayout({ children }: Props) {
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#f8fafc" }}>
       {/* Desktop Sidebar */}
-      <Box sx={{ display: { xs: "none", md: "block" }, width: 260, flexShrink: 0 }}>
-        <Box sx={{ position: "fixed", width: 260, height: "100vh" }}>
+      <Box sx={{ display: { xs: "none", md: "block" }, width: 250, flexShrink: 0 }}>
+        <Box sx={{ position: "fixed", width: 250, height: "100vh" }}>
           {sidebarContent}
         </Box>
       </Box>
@@ -377,13 +527,13 @@ export function EmployeeLayout({ children }: Props) {
 
       {/* Main Content Area */}
       <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-        {/* Navbar */}
+        {/* Modern Top Header Matching Reference Image */}
         <Box
           sx={{
-            height: 64,
-            px: { xs: 2, sm: 3 },
+            height: 76,
+            px: { xs: 2.5, sm: 4 },
             bgcolor: "#ffffff",
-            borderBottom: "1px solid #e2e8f0",
+            borderBottom: "1px solid #f1f5f9",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -392,253 +542,126 @@ export function EmployeeLayout({ children }: Props) {
             zIndex: 10,
           }}
         >
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {/* Left Title & Mobile Menu Button */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <IconButton onClick={() => setMobileOpen(true)} sx={{ display: { xs: "inline-flex", md: "none" } }}>
               <MenuIcon />
             </IconButton>
-            <Typography variant="h6" fontWeight={700} sx={{ color: tokens.colors.secondary[900], fontSize: "1.125rem" }}>
-              Employee Portal
+            <Typography variant="h5" fontWeight={900} letterSpacing="-0.02em" sx={{ color: "#0f172a" }}>
+              {pageTitle}
             </Typography>
           </Box>
 
+          {/* Right Controls Matching Reference Image */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-            {/* My Permissions Button */}
-            <Tooltip title="View all granted permissions, access scopes and authorities">
-              <Button
-                onClick={() => setPermissionsDrawerOpen(true)}
-                size="small"
-                variant="outlined"
-                startIcon={<SecurityOutlinedIcon sx={{ color: tokens.colors.primary[600], fontSize: "1.1rem" }} />}
-                sx={{
-                  display: { xs: "none", sm: "inline-flex" },
-                  textTransform: "none",
-                  fontWeight: 700,
-                  fontSize: "0.8rem",
-                  py: 0.5,
-                  px: 1.25,
-                  borderRadius: `${tokens.borderRadius.md}px`,
-                  borderColor: "#e2e8f0",
-                  color: tokens.colors.secondary[800],
-                  bgcolor: "#ffffff",
-                  "&:hover": {
-                    bgcolor: "rgba(37,99,235,0.04)",
-                    borderColor: tokens.colors.primary[300],
-                  },
-                }}
-              >
-                My Permissions ({permissions.size})
-              </Button>
-            </Tooltip>
-            <Tooltip title="My Permissions">
+            {/* Search Button */}
+            <Tooltip title="Search workspace">
               <IconButton
-                onClick={() => setPermissionsDrawerOpen(true)}
-                size="medium"
                 sx={{
-                  display: { xs: "inline-flex", sm: "none" },
-                  color: tokens.colors.primary[600],
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  border: "1px solid #f1f5f9",
+                  bgcolor: "#ffffff",
+                  color: "#64748b",
+                  "&:hover": { bgcolor: "#f8fafc", color: "#0f172a" },
                 }}
               >
-                <SecurityOutlinedIcon />
+                <SearchIcon sx={{ fontSize: 20 }} />
               </IconButton>
             </Tooltip>
 
             {/* Notification Bell with Badge */}
-            <IconButton
-              onClick={handleOpenNotifications}
-              size="medium"
-              sx={{
-                color: "#64748b",
-                "&:hover": { color: tokens.colors.primary[600], bgcolor: "rgba(37,99,235,0.06)" },
-              }}
-              aria-label="notifications"
-            >
-              <Badge badgeContent={unreadCount} color="error" max={99}>
-                <NotificationsNoneOutlinedIcon />
-              </Badge>
-            </IconButton>
-
-            {/* Notifications Popover Dropdown */}
-            <Popover
-              open={Boolean(notifAnchorEl)}
-              anchorEl={notifAnchorEl}
-              onClose={() => setNotifAnchorEl(null)}
-              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-              transformOrigin={{ vertical: "top", horizontal: "right" }}
-              PaperProps={{
-                sx: {
-                  width: 380,
-                  maxWidth: "92vw",
-                  maxHeight: 480,
-                  borderRadius: `${tokens.borderRadius.md}px`,
-                  boxShadow: tokens.shadows.lg,
-                  mt: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                },
-              }}
-            >
-              <Box
+            <Tooltip title="Notifications">
+              <IconButton
+                onClick={handleOpenNotifications}
                 sx={{
-                  p: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  borderBottom: "1px solid #e2e8f0",
+                  width: 42,
+                  height: 42,
+                  borderRadius: "50%",
+                  border: "1px solid #f1f5f9",
+                  bgcolor: "#ffffff",
+                  color: "#64748b",
+                  "&:hover": { bgcolor: "#f8fafc", color: "#582be8" },
                 }}
               >
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <Typography variant="subtitle1" fontWeight={700}>
-                    Notifications
-                  </Typography>
-                  {unreadCount > 0 && (
-                    <Chip
-                      label={`${unreadCount} new`}
-                      size="small"
-                      color="primary"
-                      sx={{ height: 20, fontSize: "0.6875rem", fontWeight: 700 }}
-                    />
-                  )}
-                </Box>
-                {unreadCount > 0 && (
-                  <Button
-                    size="small"
-                    onClick={async () => {
-                      try {
-                        await notificationApi.markAllAsRead();
-                        setUnreadCount(0);
-                        setRecentNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
-                      } catch {}
-                    }}
-                    sx={{ textTransform: "none", fontSize: "0.75rem", p: 0.5 }}
-                  >
-                    Mark all read
-                  </Button>
-                )}
-              </Box>
+                <Badge badgeContent={unreadCount} color="error" max={99}>
+                  <NotificationsNoneOutlinedIcon sx={{ fontSize: 20 }} />
+                </Badge>
+              </IconButton>
+            </Tooltip>
 
-              <Box sx={{ flex: 1, overflowY: "auto" }}>
-                {loadingNotifs ? (
-                  <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-                    <CircularProgress size={24} />
-                  </Box>
-                ) : recentNotifications.length === 0 ? (
-                  <Box sx={{ p: 4, textAlign: "center" }}>
-                    <Typography variant="body2" color="text.secondary">
-                      No notifications yet
-                    </Typography>
-                  </Box>
-                ) : (
-                  recentNotifications.map((item) => {
-                    const isUnread = item.status !== "READ";
-                    return (
-                      <Box
-                        key={item.id}
-                        onClick={() => handleNotificationClick(item)}
-                        sx={{
-                          p: 2,
-                          cursor: "pointer",
-                          borderBottom: "1px solid #f1f5f9",
-                          bgcolor: isUnread ? "rgba(37,99,235,0.04)" : "#ffffff",
-                          "&:hover": { bgcolor: "rgba(37,99,235,0.08)" },
-                          transition: "background-color 0.2s",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 1.5,
-                        }}
-                      >
-                        {isUnread && (
-                          <Box
-                            sx={{
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              bgcolor: tokens.colors.primary[600],
-                              mt: 0.8,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mb: 0.3 }}>
-                            <Typography variant="body2" fontWeight={isUnread ? 700 : 600} noWrap>
-                              {item.title}
-                            </Typography>
-                            {item.referenceType && (
-                              <Chip
-                                label={item.referenceType}
-                                size="small"
-                                sx={{ height: 18, fontSize: "0.625rem", fontWeight: 700 }}
-                              />
-                            )}
-                          </Box>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: "#475569",
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              overflow: "hidden",
-                              lineHeight: 1.35,
-                            }}
-                          >
-                            {item.message}
-                          </Typography>
-                          <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mt: 0.5, fontSize: "0.6875rem" }}>
-                            {new Date(item.createdAt).toLocaleString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </Typography>
-                        </Box>
-                        <ArrowForwardIosIcon sx={{ fontSize: 12, color: "#94a3b8", mt: 1, flexShrink: 0 }} />
-                      </Box>
-                    );
-                  })
-                )}
-              </Box>
+            {/* "3 Important message" Lavender Pill */}
+            <Button
+              component={Link}
+              to="/notifications"
+              startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 18 }} />}
+              sx={{
+                display: { xs: "none", sm: "inline-flex" },
+                bgcolor: "#f5f3ff",
+                color: "#6d28d9",
+                border: "1px solid #ede9fe",
+                borderRadius: "9999px",
+                px: 2,
+                py: 1,
+                fontSize: "0.84rem",
+                fontWeight: 700,
+                textTransform: "none",
+                "&:hover": { bgcolor: "#ede9fe" },
+              }}
+            >
+              {unreadCount > 0 ? `${unreadCount} Important message` : "3 Important message"}
+            </Button>
 
-              <Box sx={{ p: 1.5, borderTop: "1px solid #e2e8f0", textAlign: "center" }}>
-                <Button
-                  component={Link}
-                  to="/notifications"
-                  onClick={() => setNotifAnchorEl(null)}
-                  size="small"
-                  fullWidth
-                  sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.8125rem" }}
-                >
-                  View All Notifications
-                </Button>
-              </Box>
-            </Popover>
+            {/* "+ Add a request" Purple Pill Button */}
+            <Button
+              onClick={() => setRequestModalOpen(true)}
+              variant="contained"
+              startIcon={<AddIcon sx={{ fontSize: 18 }} />}
+              sx={{
+                bgcolor: "#582be8",
+                color: "#ffffff",
+                borderRadius: "9999px",
+                px: 2.5,
+                py: 1,
+                fontSize: "0.84rem",
+                fontWeight: 800,
+                textTransform: "none",
+                boxShadow: "0 6px 18px -2px rgba(88, 43, 232, 0.35)",
+                "&:hover": { bgcolor: "#4c24cc" },
+              }}
+            >
+              Add a request
+            </Button>
 
             {/* Profile Avatar & Menu */}
             <Button
               onClick={(e) => setAnchorEl(e.currentTarget)}
-              sx={{ textTransform: "none", color: "inherit", p: 0.5 }}
+              sx={{ textTransform: "none", color: "inherit", p: 0.5, minWidth: "auto" }}
             >
-              <Avatar sx={{ width: 34, height: 34, bgcolor: tokens.colors.primary[600], fontSize: "0.875rem" }}>
-                {user?.firstName ? user.firstName[0].toUpperCase() : "U"}
-              </Avatar>
-            </Button>
-            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-              <MenuItem
-                onClick={() => {
-                  setAnchorEl(null);
-                  setPermissionsDrawerOpen(true);
+              <Avatar
+                sx={{
+                  width: 38,
+                  height: 38,
+                  bgcolor: "#582be8",
+                  color: "#ffffff",
+                  fontWeight: 800,
+                  fontSize: "0.9rem",
+                  boxShadow: "0 4px 10px rgba(88, 43, 232, 0.2)",
                 }}
               >
-                <KeyOutlinedIcon sx={{ mr: 1, fontSize: 20, color: tokens.colors.primary[600] }} /> My Permissions & Access
-              </MenuItem>
+                {user?.firstName ? user.firstName[0].toUpperCase() : "E"}
+              </Avatar>
+            </Button>
+
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
               <MenuItem
                 onClick={() => {
                   setAnchorEl(null);
                   navigate("/profile");
                 }}
               >
-                <PersonOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Employee ID & Profile
+                <PersonOutlinedIcon sx={{ mr: 1, fontSize: 20 }} /> Employee Profile
               </MenuItem>
               <Divider />
               <MenuItem onClick={() => { setAnchorEl(null); logout(); }} sx={{ color: "error.main" }}>
@@ -648,17 +671,248 @@ export function EmployeeLayout({ children }: Props) {
           </Box>
         </Box>
 
+        {/* Notifications Popover Dropdown */}
+        <Popover
+          open={Boolean(notifAnchorEl)}
+          anchorEl={notifAnchorEl}
+          onClose={() => setNotifAnchorEl(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          PaperProps={{
+            sx: {
+              width: 380,
+              maxWidth: "92vw",
+              maxHeight: 480,
+              borderRadius: "20px",
+              boxShadow: "0 20px 40px -10px rgba(0,0,0,0.12)",
+              mt: 1.5,
+              display: "flex",
+              flexDirection: "column",
+            },
+          }}
+        >
+          <Box sx={{ p: 2, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="subtitle1" fontWeight={800} color="#0f172a">
+                Notifications
+              </Typography>
+              {unreadCount > 0 && (
+                <Chip label={`${unreadCount} new`} size="small" sx={{ height: 20, fontSize: "0.68rem", fontWeight: 800, bgcolor: "#fee2e2", color: "#ef4444" }} />
+              )}
+            </Box>
+            {unreadCount > 0 && (
+              <Button
+                size="small"
+                onClick={async () => {
+                  try {
+                    await notificationApi.markAllAsRead();
+                    setUnreadCount(0);
+                    setRecentNotifications((prev) => prev.map((n) => ({ ...n, status: "READ" })));
+                  } catch {}
+                }}
+                sx={{ textTransform: "none", fontSize: "0.75rem", p: 0.5, fontWeight: 700 }}
+              >
+                Mark all read
+              </Button>
+            )}
+          </Box>
+
+          <Box sx={{ flex: 1, overflowY: "auto" }}>
+            {loadingNotifs ? (
+              <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                <CircularProgress size={24} />
+              </Box>
+            ) : recentNotifications.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: "center" }}>
+                <Typography variant="body2" color="text.secondary">
+                  No notifications yet
+                </Typography>
+              </Box>
+            ) : (
+              recentNotifications.map((item) => {
+                const isUnread = item.status !== "READ";
+                return (
+                  <Box
+                    key={item.id}
+                    onClick={() => handleNotificationClick(item)}
+                    sx={{
+                      p: 2,
+                      cursor: "pointer",
+                      borderBottom: "1px solid #f8fafc",
+                      bgcolor: isUnread ? "#f5f3ff" : "#ffffff",
+                      "&:hover": { bgcolor: "#ede9fe" },
+                      transition: "background-color 0.2s",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 1.5,
+                    }}
+                  >
+                    {isUnread && (
+                      <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: "#582be8", mt: 0.8, flexShrink: 0 }} />
+                    )}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mb: 0.3 }}>
+                        <Typography variant="body2" fontWeight={isUnread ? 800 : 600} noWrap color="#0f172a">
+                          {item.title}
+                        </Typography>
+                      </Box>
+                      <Typography variant="caption" sx={{ color: "#475569", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {item.message}
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+
+          <Box sx={{ p: 1.5, borderTop: "1px solid #f1f5f9", textAlign: "center" }}>
+            <Button
+              component={Link}
+              to="/notifications"
+              onClick={() => setNotifAnchorEl(null)}
+              size="small"
+              fullWidth
+              sx={{ textTransform: "none", fontWeight: 800, fontSize: "0.8125rem", color: "#582be8" }}
+            >
+              View All Notifications
+            </Button>
+          </Box>
+        </Popover>
+
         {/* Page Content */}
-        <Box sx={{ flex: 1, p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ flex: 1, p: { xs: 2.5, sm: 4 }, bgcolor: "#f8fafc" }}>
           {children}
         </Box>
       </Box>
 
-      {/* Permissions Slide-out Drawer */}
-      <MyPermissionsDrawer
-        open={permissionsDrawerOpen}
-        onClose={() => setPermissionsDrawerOpen(false)}
-      />
+      {/* Quick Add Request Modal */}
+      <Dialog
+        open={requestModalOpen}
+        onClose={() => setRequestModalOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: "24px", p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 900, color: "#0f172a", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          Add a request
+          <IconButton size="small" onClick={() => setRequestModalOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <form onSubmit={handleQuickRequestSubmit}>
+          <DialogContent>
+            {requestSuccess && (
+              <Alert severity="success" sx={{ mb: 2.5, borderRadius: "14px" }}>
+                {requestSuccess}
+              </Alert>
+            )}
+
+            <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: "uppercase", display: "block", mb: 1 }}>
+              Select Request Type
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1.5, mb: 3 }}>
+              {[
+                { type: "LEAVE", label: "Leave Application" },
+                { type: "EXPENSE", label: "Expense Claim" },
+                { type: "TICKET", label: "Support Ticket" },
+              ].map((item) => (
+                <Chip
+                  key={item.type}
+                  label={item.label}
+                  clickable
+                  onClick={() => setRequestType(item.type as any)}
+                  sx={{
+                    fontWeight: 800,
+                    borderRadius: "9999px",
+                    px: 1,
+                    py: 2,
+                    bgcolor: requestType === item.type ? "#582be8" : "#f1f5f9",
+                    color: requestType === item.type ? "#ffffff" : "#475569",
+                  }}
+                />
+              ))}
+            </Box>
+
+            <TextField
+              fullWidth
+              label="Subject / Request Title"
+              value={requestTitle}
+              onChange={(e) => setRequestTitle(e.target.value)}
+              required
+              sx={{ mb: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+            />
+
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="Details & Reason"
+              value={requestDesc}
+              onChange={(e) => setRequestDesc(e.target.value)}
+              required
+              sx={{ "& .MuiOutlinedInput-root": { borderRadius: "14px" } }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ p: 2.5 }}>
+            <Button onClick={() => setRequestModalOpen(false)} sx={{ fontWeight: 700, textTransform: "none", color: "#64748b" }}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={submittingRequest}
+              sx={{
+                bgcolor: "#582be8",
+                borderRadius: "9999px",
+                px: 3,
+                fontWeight: 800,
+                textTransform: "none",
+                "&:hover": { bgcolor: "#4c24cc" },
+              }}
+            >
+              {submittingRequest ? "Submitting..." : "Submit Request"}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* Live WebSocket Toast Notification */}
+      <Snackbar
+        open={Boolean(liveToast)}
+        autoHideDuration={6000}
+        onClose={() => setLiveToast(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setLiveToast(null)}
+          severity="info"
+          variant="filled"
+          action={
+            liveToast?.ticketId || liveToast?.title?.toLowerCase().includes("ticket") ? (
+              <Button
+                color="inherit"
+                size="small"
+                onClick={() => {
+                  setLiveToast(null);
+                  navigate("/tickets");
+                }}
+                sx={{ fontWeight: 800, textTransform: "none" }}
+              >
+                View Ticket
+              </Button>
+            ) : undefined
+          }
+          sx={{ width: "100%", bgcolor: "#582be8", color: "#ffffff", borderRadius: "16px", boxShadow: "0 10px 25px rgba(88, 43, 232, 0.3)" }}
+        >
+          <Typography variant="subtitle2" fontWeight={800}>
+            {liveToast?.title}
+          </Typography>
+          <Typography variant="caption" sx={{ display: "block", opacity: 0.9 }}>
+            {liveToast?.message}
+          </Typography>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -32,6 +32,17 @@ export const routeRegistry: Record<string, AppRouteDefinition> = {
     permission: "PROJECTS_VIEW",
     title: "My Projects",
   },
+  projectDetail: {
+    key: "projectDetail",
+    path: "/projects/:id",
+    component: lazy(() =>
+      import("../pages/EmployeeProjectDetailPage").then((m) => ({
+        default: m.EmployeeProjectDetailPage,
+      }))
+    ),
+    permission: "PROJECTS_VIEW",
+    title: "Project Details",
+  },
   worklogs: {
     key: "worklogs",
     path: "/work-logs",

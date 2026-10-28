@@ -241,7 +241,20 @@ export function MyPermissionsDrawer({
       </Box>
 
       {/* Permissions List */}
-      <Box sx={{ flexGrow: 1, overflowY: "auto", px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          overflowY: "auto",
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
+          "&::-webkit-scrollbar": { display: "none" },
+          px: 2,
+          pb: 2,
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.5,
+        }}
+      >
         {filteredList.length === 0 ? (
           <Box sx={{ p: 4, textAlign: "center", bgcolor: "#ffffff", borderRadius: 2 }}>
             <Typography variant="body2" sx={{ color: "#94a3b8" }}>
@@ -261,7 +274,7 @@ export function MyPermissionsDrawer({
               <Box
                 key={item.code}
                 sx={{
-                  p: 2,
+                  p: 1.75,
                   bgcolor: "#ffffff",
                   borderRadius: `${tokens.borderRadius.md}px`,
                   border: "1px solid #e2e8f0",
@@ -277,7 +290,7 @@ export function MyPermissionsDrawer({
                 }}
               >
                 {/* Card Top: Name & Scope */}
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
                     <KeyOutlinedIcon sx={{ fontSize: "1rem", color: tokens.colors.primary[600] }} />
                     <Typography variant="subtitle2" fontWeight={800} sx={{ color: tokens.colors.secondary[900] }}>
@@ -285,7 +298,7 @@ export function MyPermissionsDrawer({
                     </Typography>
                     {item.meta.isApprovalAuthority && (
                       <Chip
-                        label="Approver Authority"
+                        label="Approver"
                         size="small"
                         icon={<StarsIcon sx={{ fontSize: "0.85rem !important" }} />}
                         sx={{
@@ -299,26 +312,19 @@ export function MyPermissionsDrawer({
                     )}
                   </Box>
 
-                  <Tooltip title={scopeInfo.description} arrow placement="left">
-                    <Chip
-                      label={item.scope}
-                      size="small"
-                      sx={{
-                        fontWeight: 800,
-                        fontSize: "0.68rem",
-                        height: 22,
-                        bgcolor: scopeInfo.bg,
-                        color: scopeInfo.color,
-                        border: `1px solid ${scopeInfo.color}33`,
-                      }}
-                    />
-                  </Tooltip>
+                  <Chip
+                    label={item.scope}
+                    size="small"
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: "0.68rem",
+                      height: 22,
+                      bgcolor: scopeInfo.bg,
+                      color: scopeInfo.color,
+                      border: `1px solid ${scopeInfo.color}33`,
+                    }}
+                  />
                 </Box>
-
-                {/* Description */}
-                <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.82rem" }}>
-                  {item.meta.description}
-                </Typography>
 
                 {/* Meta details footer */}
                 <Box
@@ -326,11 +332,11 @@ export function MyPermissionsDrawer({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    pt: 0.5,
+                    pt: 0.75,
                     borderTop: "1px dashed #f1f5f9",
                   }}
                 >
-                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                  <Box sx={{ display: "flex", gap: 0.75, alignItems: "center" }}>
                     <Chip
                       label={item.code}
                       size="small"
@@ -364,41 +370,40 @@ export function MyPermissionsDrawer({
         )}
       </Box>
 
-      {/* Scope Legend Footer */}
+      {/* Clean Scope Badges Footer */}
       <Box
         sx={{
           p: 2,
           bgcolor: "#ffffff",
           borderTop: "1px solid #e2e8f0",
           display: "flex",
-          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
           gap: 1,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           <InfoOutlinedIcon sx={{ fontSize: "0.95rem", color: "#64748b" }} />
-          <Typography variant="caption" fontWeight={700} sx={{ color: "#64748b", textTransform: "uppercase" }}>
-            Access Scope Legend
+          <Typography variant="caption" fontWeight={700} sx={{ color: "#64748b" }}>
+            Operational Access Scopes:
           </Typography>
         </Box>
-        <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+        <Box sx={{ display: "flex", gap: 0.75, flexWrap: "wrap" }}>
           {Object.entries(SCOPE_DESCRIPTIONS).map(([key, info]) => (
-            <Box
+            <Chip
               key={key}
+              label={`${key}: ${info.label}`}
+              size="small"
               sx={{
-                p: 0.75,
-                borderRadius: 1,
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                height: 20,
                 bgcolor: info.bg,
+                color: info.color,
                 border: `1px solid ${info.color}33`,
               }}
-            >
-              <Typography variant="caption" fontWeight={800} sx={{ color: info.color, display: "block" }}>
-                {key}
-              </Typography>
-              <Typography variant="caption" sx={{ color: "#64748b", fontSize: "0.65rem", lineHeight: 1.1, display: "block" }}>
-                {info.label}
-              </Typography>
-            </Box>
+            />
           ))}
         </Box>
       </Box>

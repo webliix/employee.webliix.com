@@ -4,11 +4,40 @@ export interface ProjectTask {
   id: number;
   projectId: number;
   title: string;
+  taskName?: string;
   description?: string;
-  status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
-  assignedTo?: number;
+  status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | string;
+  priority?: string;
+  assignedTo?: string | number;
   startDate?: string;
   dueDate?: string;
+  completedAt?: string;
+}
+
+export interface ProjectMilestoneItem {
+  id: number;
+  projectId: number;
+  title: string;
+  milestoneName?: string;
+  description?: string;
+  dueDate?: string;
+  completed?: boolean;
+  completedAt?: string;
+  status?: string;
+}
+
+export interface ProjectMemberItem {
+  id: number;
+  projectId: number;
+  userId?: number;
+  employeeId?: number;
+  employeeName?: string;
+  employeeEmail?: string;
+  employeeCode?: string;
+  designationName?: string;
+  departmentName?: string;
+  roleInProject: string;
+  assignedDate?: string;
 }
 
 export interface ProjectWorkLog {
@@ -54,6 +83,14 @@ export interface Project {
   expectedEndDate?: string;
   actualEndDate?: string;
   progressPercentage?: number;
+  budget?: number;
+  documentationUrl?: string;
+  architectureNotes?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerCompanyName?: string;
+  createdAt?: string;
+  updatedAt?: string;
   customer?: {
     id: number;
     companyName: string;
@@ -103,12 +140,55 @@ export const projectApi = {
     return res.data?.data || [];
   },
 
-  async getProject(id: number): Promise<Project> {
+  async getProject(id: number | string): Promise<Project> {
     const res = await http.get(`/api/v1/projects/${id}`);
     return res.data?.data;
   },
 
-  async getProjectBilling(projectId: number): Promise<ProjectBillingSummary | null> {
+  async getMilestones(projectId: number | string): Promise<ProjectMilestoneItem[]> {
+    try {
+      const res = await http.get(`/api/v1/projects/${projectId}/milestones`);
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async updateMilestone(
+    projectId: number | string,
+    milestoneId: number | string,
+    payload: { title?: string; description?: string; dueDate?: string; completed?: boolean }
+  ): Promise<ProjectMilestoneItem | null> {
+    try {
+      const res = await http.put(`/api/v1/projects/${projectId}/milestones/${milestoneId}`, payload);
+      return res.data?.data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async addMilestone(
+    projectId: number | string,
+    payload: { title: string; description?: string; dueDate?: string }
+  ): Promise<ProjectMilestoneItem | null> {
+    try {
+      const res = await http.post(`/api/v1/projects/${projectId}/milestones`, payload);
+      return res.data?.data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async getProjectMembers(projectId: number | string): Promise<ProjectMemberItem[]> {
+    try {
+      const res = await http.get(`/api/v1/projects/${projectId}/members`);
+      return res.data?.data || [];
+    } catch {
+      return [];
+    }
+  },
+
+  async getProjectBilling(projectId: number | string): Promise<ProjectBillingSummary | null> {
     try {
       const res = await http.get(`/api/v1/projects/${projectId}/billing`);
       return res.data?.data || null;
@@ -117,22 +197,22 @@ export const projectApi = {
     }
   },
 
-  async billProject(projectId: number, payload: BillProjectRequest) {
+  async billProject(projectId: number | string, payload: BillProjectRequest) {
     const res = await http.post(`/api/v1/employee/me/projects/${projectId}/bill`, payload);
     return res.data;
   },
 
-  async getProjectTasks(projectId: number): Promise<ProjectTask[]> {
+  async getProjectTasks(projectId: number | string): Promise<ProjectTask[]> {
     const res = await http.get(`/api/v1/projects/${projectId}/tasks`);
     return res.data?.data || [];
   },
 
-  async updateTaskStatus(projectId: number, taskId: number, task: Partial<ProjectTask>): Promise<ProjectTask> {
+  async updateTaskStatus(projectId: number | string, taskId: number | string, task: Partial<ProjectTask>): Promise<ProjectTask> {
     const res = await http.put(`/api/v1/projects/${projectId}/tasks/${taskId}`, task);
     return res.data?.data;
   },
 
-  async getProjectComments(projectId: number): Promise<ProjectComment[]> {
+  async getProjectComments(projectId: number | string): Promise<ProjectComment[]> {
     const res = await http.get(`/api/v1/projects/${projectId}/comments`);
     const list = res.data?.data || [];
     return list.map((c: any) => {
@@ -145,7 +225,7 @@ export const projectApi = {
     });
   },
 
-  async addProjectComment(projectId: number, comment: string): Promise<ProjectComment> {
+  async addProjectComment(projectId: number | string, comment: string): Promise<ProjectComment> {
     const res = await http.post(`/api/v1/projects/${projectId}/comments`, { message: comment, comment });
     const c = res.data?.data || {};
     return {
@@ -156,7 +236,7 @@ export const projectApi = {
   },
 
   async updateProjectProgress(
-    projectId: number,
+    projectId: number | string,
     progressPercentage?: number,
     status?: string,
     updateNote?: string
@@ -170,14 +250,14 @@ export const projectApi = {
   },
 
   async createProjectTask(
-    projectId: number,
-    task: { title: string; description?: string; status?: string; dueDate?: string; assignedTo?: number }
+    projectId: number | string,
+    task: { title: string; description?: string; status?: string; dueDate?: string; assignedTo?: number | string }
   ): Promise<ProjectTask> {
     const res = await http.post(`/api/v1/projects/${projectId}/tasks`, task);
     return res.data?.data;
   },
 
-  async getProjectWorkLogs(projectId: number): Promise<ProjectWorkLog[]> {
+  async getProjectWorkLogs(projectId: number | string): Promise<ProjectWorkLog[]> {
     const res = await http.get(`/api/v1/projects/${projectId}/work-logs`);
     return res.data?.data || [];
   },
