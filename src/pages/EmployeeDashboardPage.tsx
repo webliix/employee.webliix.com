@@ -165,7 +165,7 @@ export function EmployeeDashboardPage() {
 
   useEffect(() => {
     loadData();
-  }, [can]);
+  }, []);
 
   const handleClockIn = async () => {
     setClockLoading(true);

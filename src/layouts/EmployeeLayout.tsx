@@ -113,11 +113,12 @@ export function EmployeeLayout({ children }: Props) {
     loadUnreadCount();
     loadPendingCounts();
     const timer = setInterval(() => {
+      if (document.hidden) return;
       loadUnreadCount();
       loadPendingCounts();
-    }, 45000);
+    }, 60000);
     return () => clearInterval(timer);
-  }, [can]);
+  }, []);
 
   // Live WebSocket Real-time Notifications & Ticket Alerts
   const [liveToast, setLiveToast] = useState<{ title: string; message: string; ticketId?: number } | null>(null);

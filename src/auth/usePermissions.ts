@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useAuth } from "./AuthProvider";
 import type { ScopeType } from "../types/auth";
 
@@ -10,29 +11,29 @@ const SCOPE_RANKS: Record<ScopeType, number> = {
 export function usePermissions() {
   const { permissions } = useAuth();
 
-  const can = (code: string): boolean => {
+  const can = useCallback((code: string): boolean => {
     return permissions.has(code);
-  };
+  }, [permissions]);
 
-  const canAny = (codes: string[]): boolean => {
+  const canAny = useCallback((codes: string[]): boolean => {
     if (!codes || codes.length === 0) return true;
     return codes.some((code) => permissions.has(code));
-  };
+  }, [permissions]);
 
-  const canAll = (codes: string[]): boolean => {
+  const canAll = useCallback((codes: string[]): boolean => {
     if (!codes || codes.length === 0) return true;
     return codes.every((code) => permissions.has(code));
-  };
+  }, [permissions]);
 
-  const scopeOf = (code: string): ScopeType | null => {
+  const scopeOf = useCallback((code: string): ScopeType | null => {
     return permissions.get(code) || null;
-  };
+  }, [permissions]);
 
-  const hasScope = (code: string, requiredScope: ScopeType): boolean => {
+  const hasScope = useCallback((code: string, requiredScope: ScopeType): boolean => {
     const currentScope = permissions.get(code);
     if (!currentScope) return false;
     return SCOPE_RANKS[currentScope] >= SCOPE_RANKS[requiredScope];
-  };
+  }, [permissions]);
 
   return {
     can,
